@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Iceland trip journal — what happened?">
+  <title>Journal — Iceland Trip</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Expanded:wght@600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <nav class="nav" aria-label="Main navigation">
+    <div class="nav__inner">
+      <a href="/" class="nav__brand">Iceland Trip</a>
+      <div class="nav__links">
+        <a href="/" class="nav__link" data-page="today">Today</a>
+        <a href="/journal.html" class="nav__link" data-page="journal">Journal</a>
+        <a href="/links.html" class="nav__link" data-page="links">Links</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page">
+    <div id="page-status" class="container" role="status"></div>
+
+    <header class="page-header container">
+      <p class="label">Trip journal</p>
+      <h1 class="display page-header__title">What happened?</h1>
+      <p class="page-header__subtitle">
+        Daily entries in chronological order.
+        <span class="mono" id="entry-count"></span>
+      </p>
+    </header>
+
+    <section class="container section--tight" aria-label="Journal entries">
+      <div class="journal-list" id="journal-list"></div>
+    </section>
+  </main>
+
+  <script type="module" src="/js/journal.js"></script>
+</body>
+</html>

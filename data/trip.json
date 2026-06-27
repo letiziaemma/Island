@@ -1,0 +1,243 @@
+{
+  "trip": {
+    "title": "Iceland Expedition",
+    "subtitle": "Ring Road & Highlands",
+    "startDate": "2026-07-01",
+    "endDate": "2026-07-10",
+    "currentDay": 3,
+    "totalDays": 10,
+    "timezone": "Atlantic/Reykjavik",
+    "header": {
+      "eyebrow": ["ROADTRIP", "3 FRIENDS", "SUMMER"],
+      "title": "ÍSLAND",
+      "subtitle": "Us three. Ring road. No plan B.",
+      "stats": [
+        { "label": "Stops", "accent": "cyan" },
+        { "label": "Km", "accent": "magenta" },
+        { "label": "Day", "accent": "lime" }
+      ]
+    }
+  },
+  "today": {
+    "date": "2026-07-03",
+    "dayNumber": 3,
+    "title": "South Coast Discovery",
+    "overview": "Waterfalls, black sand beaches, and glacier views along the southern coast. A full day of dramatic landscapes and short hikes.",
+    "weather": {
+      "condition": "Partly cloudy",
+      "tempHigh": 12,
+      "tempLow": 6,
+      "wind": "18 km/h NW",
+      "placeholder": true
+    },
+    "itinerary": [
+      {
+        "time": "08:00",
+        "title": "Depart accommodation",
+        "location": "Reykjavik area",
+        "status": "completed"
+      },
+      {
+        "time": "10:30",
+        "title": "Seljalandsfoss waterfall",
+        "location": "Seljalandsfoss, South Iceland",
+        "status": "completed"
+      },
+      {
+        "time": "12:00",
+        "title": "Skógafoss & lunch stop",
+        "location": "Skógafoss, Skógar",
+        "status": "current"
+      },
+      {
+        "time": "15:00",
+        "title": "Reynisfjara black sand beach",
+        "location": "Reynisfjara, Vík",
+        "status": "upcoming"
+      },
+      {
+        "time": "18:30",
+        "title": "Check in — coastal guesthouse",
+        "location": "Vík, Iceland",
+        "status": "upcoming"
+      }
+    ],
+    "meals": {
+      "lunch":  { "dish": "", "tags": [] },
+      "dinner": { "dish": "", "tags": [] }
+    },
+    "progress": {
+      "dayComplete": 45,
+      "tripComplete": 30,
+      "activitiesDone": 2,
+      "activitiesTotal": 5,
+      "distanceToday": 280,
+      "distanceTotal": 1350
+    }
+  },
+  "milestones": [
+    {
+      "id": "m1",
+      "title": "Arrive in Iceland",
+      "day": 1,
+      "status": "completed"
+    },
+    {
+      "id": "m2",
+      "title": "Golden Circle complete",
+      "day": 2,
+      "status": "completed"
+    },
+    {
+      "id": "m3",
+      "title": "Reach the South Coast",
+      "day": 3,
+      "status": "current"
+    },
+    {
+      "id": "m4",
+      "title": "Glacier lagoon visit",
+      "day": 5,
+      "status": "upcoming"
+    },
+    {
+      "id": "m5",
+      "title": "Highlands crossing",
+      "day": 7,
+      "status": "upcoming"
+    },
+    {
+      "id": "m6",
+      "title": "Return to Reykjavik",
+      "day": 10,
+      "status": "upcoming"
+    }
+  ],
+  "journal": [
+    {
+      "day": 1,
+      "date": "2026-07-01",
+      "title": "Arrival day",
+      "location": "Reykjavik",
+      "mood": "Excited",
+      "excerpt": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore.",
+      "body": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+    },
+    {
+      "day": 2,
+      "date": "2026-07-02",
+      "title": "Golden Circle loop",
+      "location": "Þingvellir → Geysir → Gullfoss",
+      "mood": "Amazed",
+      "excerpt": "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo.",
+      "body": "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.\n\nSed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo."
+    },
+    {
+      "day": 3,
+      "date": "2026-07-03",
+      "title": "South Coast begins",
+      "location": "Seljalandsfoss → Vík",
+      "mood": "Energized",
+      "excerpt": "Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur.",
+      "body": "Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet.\n\nAt vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident."
+    }
+  ],
+  "links": {
+    "categories": [
+      {
+        "id": "accommodation",
+        "label": "Accommodation",
+        "items": [
+          { "title": "Night 1–2 — City hotel", "url": "#", "note": "Confirmation #PLH-001" },
+          { "title": "Night 3–4 — Coastal guesthouse", "url": "#", "note": "Confirmation #PLH-002" },
+          { "title": "Night 5–6 — Farm stay", "url": "#", "note": "Confirmation #PLH-003" }
+        ]
+      },
+      {
+        "id": "reservations",
+        "label": "Reservations",
+        "items": [
+          { "title": "Blue Lagoon — Day 1 afternoon", "url": "#", "note": "14:00 slot" },
+          { "title": "Glacier hike — Day 5", "url": "#", "note": "09:00 guided tour" },
+          { "title": "Restaurant — Day 7 dinner", "url": "#", "note": "19:30, 4 guests" }
+        ]
+      },
+      {
+        "id": "travel",
+        "label": "Airline & transport",
+        "items": [
+          { "title": "Outbound flight", "url": "#", "note": "FI-450, Jul 1" },
+          { "title": "Return flight", "url": "#", "note": "FI-451, Jul 10" },
+          { "title": "Rental car booking", "url": "#", "note": "4x4, pickup KEF" }
+        ]
+      },
+      {
+        "id": "maps",
+        "label": "Maps & navigation",
+        "items": [
+          { "title": "Full trip route", "url": "#", "note": "Google Maps — Ring Road" },
+          { "title": "Day 3 — South Coast", "url": "#", "note": "Today's driving route" },
+          { "title": "Parking — Seljalandsfoss", "url": "#", "note": "Paid lot, card only" }
+        ]
+      },
+      {
+        "id": "food",
+        "label": "Restaurants",
+        "items": [
+          { "title": "Reykjavik — Day 1 dinner", "url": "#", "note": "Seafood, reservations" },
+          { "title": "Vík — Day 3 lunch spot", "url": "#", "note": "Casual, no booking" },
+          { "title": "Höfn — Day 6 dinner", "url": "#", "note": "Langoustine specialist" }
+        ]
+      },
+      {
+        "id": "emergency",
+        "label": "Emergency & useful",
+        "items": [
+          { "title": "Emergency — 112", "url": "tel:112", "note": "Police, ambulance, fire" },
+          { "title": "Road conditions", "url": "#", "note": "road.is — check daily" },
+          { "title": "Weather forecast", "url": "#", "note": "vedur.is" },
+          { "title": "Travel insurance", "url": "#", "note": "Policy #INS-8842" }
+        ]
+      }
+    ]
+  },
+  "statistics": {
+    "daysElapsed": 3,
+    "daysRemaining": 7,
+    "totalDistance": 1350,
+    "distanceCovered": 405,
+    "waterfalls": 4,
+    "photosTaken": 127,
+    "coffeesConsumed": 9
+  },
+  "locations": [
+    {
+      "name": "Seljalandsfoss",
+      "lat": 63.6156,
+      "lng": -19.9886,
+      "type": "waterfall",
+      "day": 3
+    },
+    {
+      "name": "Skógafoss",
+      "lat": 63.5321,
+      "lng": -19.5114,
+      "type": "waterfall",
+      "day": 3
+    },
+    {
+      "name": "Reynisfjara",
+      "lat": 63.4026,
+      "lng": -19.0445,
+      "type": "beach",
+      "day": 3
+    },
+    {
+      "name": "Vík",
+      "lat": 63.4186,
+      "lng": -19.0059,
+      "type": "town",
+      "day": 3
+    }
+  ]
+}

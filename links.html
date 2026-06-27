@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Iceland trip links — where do I find it?">
+  <title>Links — Iceland Trip</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Expanded:wght@600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <nav class="nav" aria-label="Main navigation">
+    <div class="nav__inner">
+      <a href="/" class="nav__brand">Iceland Trip</a>
+      <div class="nav__links">
+        <a href="/" class="nav__link" data-page="today">Today</a>
+        <a href="/journal.html" class="nav__link" data-page="journal">Journal</a>
+        <a href="/links.html" class="nav__link" data-page="links">Links</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page">
+    <div id="page-status" class="container" role="status"></div>
+
+    <header class="page-header container">
+      <p class="label">Resources</p>
+      <h1 class="display page-header__title">Where do I find it?</h1>
+      <p class="page-header__subtitle">
+        Bookings, maps, and useful references.
+        <span class="mono" id="link-count"></span>
+      </p>
+    </header>
+
+    <section class="container section--tight" aria-label="Trip overview">
+      <div class="grid" style="gap: var(--space-lg); margin-bottom: var(--space-xl);">
+        <section class="card" aria-labelledby="countdown-heading">
+          <div class="card__header">
+            <h2 class="card__title" id="countdown-heading">Countdown</h2>
+          </div>
+          <p class="label" style="margin-bottom: var(--space-md);">Time until trip ends</p>
+          <div id="countdown"></div>
+        </section>
+
+        <div class="grid grid-2">
+          <section class="card" aria-labelledby="milestones-heading">
+            <div class="card__header">
+              <h2 class="card__title" id="milestones-heading">Trip milestones</h2>
+            </div>
+            <div id="milestones"></div>
+          </section>
+
+          <section class="card" aria-labelledby="stats-heading">
+            <div class="card__header">
+              <h2 class="card__title" id="stats-heading">Trip statistics</h2>
+            </div>
+            <div id="statistics"></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="container section--tight" aria-label="Useful links">
+      <div class="links-grid" id="links-grid"></div>
+    </section>
+  </main>
+
+  <script type="module" src="/js/links.js"></script>
+</body>
+</html>
