@@ -142,42 +142,21 @@
       "body": "Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet.\n\nAt vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident."
     }
   ],
+  "accommodation": [
+    { "id": "acc-1", "name": "City Hotel", "person": "", "checkInDate": "2026-06-30", "checkInTime": "15:00", "checkOutDate": "2026-07-02", "url": null },
+    { "id": "acc-2", "name": "Coastal Guesthouse", "person": "", "checkInDate": "2026-07-02", "checkInTime": "15:00", "checkOutDate": "2026-07-04", "url": null },
+    { "id": "acc-3", "name": "Farm Stay", "person": "", "checkInDate": "2026-07-04", "checkInTime": "15:00", "checkOutDate": "2026-07-06", "url": null }
+  ],
   "links": {
     "categories": [
       {
-        "id": "accommodation",
-        "label": "Accommodation",
+        "id": "emergency",
+        "label": "Emergency & useful",
         "items": [
-          { "title": "Night 1–2 — City hotel", "url": "#", "note": "Confirmation #PLH-001" },
-          { "title": "Night 3–4 — Coastal guesthouse", "url": "#", "note": "Confirmation #PLH-002" },
-          { "title": "Night 5–6 — Farm stay", "url": "#", "note": "Confirmation #PLH-003" }
-        ]
-      },
-      {
-        "id": "reservations",
-        "label": "Reservations",
-        "items": [
-          { "title": "Blue Lagoon — Day 1 afternoon", "url": "#", "note": "14:00 slot" },
-          { "title": "Glacier hike — Day 5", "url": "#", "note": "09:00 guided tour" },
-          { "title": "Restaurant — Day 7 dinner", "url": "#", "note": "19:30, 4 guests" }
-        ]
-      },
-      {
-        "id": "travel",
-        "label": "Airline & transport",
-        "items": [
-          { "title": "Outbound flight", "url": "#", "note": "FI-450, Jul 1" },
-          { "title": "Return flight", "url": "#", "note": "FI-451, Jul 10" },
-          { "title": "Rental car booking", "url": "#", "note": "4x4, pickup KEF" }
-        ]
-      },
-      {
-        "id": "maps",
-        "label": "Maps & navigation",
-        "items": [
-          { "title": "Full trip route", "url": "#", "note": "Google Maps — Ring Road" },
-          { "title": "Day 3 — South Coast", "url": "#", "note": "Today's driving route" },
-          { "title": "Parking — Seljalandsfoss", "url": "#", "note": "Paid lot, card only" }
+          { "title": "Emergency — 112", "url": "tel:112", "note": "Police, ambulance, fire" },
+          { "title": "Road conditions", "url": "#", "note": "road.is — check daily" },
+          { "title": "Weather forecast", "url": "#", "note": "vedur.is" },
+          { "title": "Travel insurance", "url": "#", "note": "Policy #INS-8842" }
         ]
       },
       {
@@ -187,16 +166,6 @@
           { "title": "Reykjavik — Day 1 dinner", "url": "#", "note": "Seafood, reservations" },
           { "title": "Vík — Day 3 lunch spot", "url": "#", "note": "Casual, no booking" },
           { "title": "Höfn — Day 6 dinner", "url": "#", "note": "Langoustine specialist" }
-        ]
-      },
-      {
-        "id": "emergency",
-        "label": "Emergency & useful",
-        "items": [
-          { "title": "Emergency — 112", "url": "tel:112", "note": "Police, ambulance, fire" },
-          { "title": "Road conditions", "url": "#", "note": "road.is — check daily" },
-          { "title": "Weather forecast", "url": "#", "note": "vedur.is" },
-          { "title": "Travel insurance", "url": "#", "note": "Policy #INS-8842" }
         ]
       }
     ]

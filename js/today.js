@@ -14,6 +14,17 @@ const STATUS_LABELS = {
 let tripLocations = [];
 const distanceCache = {};
 
+const ACCOM_KEY = 'island-accommodation-v1';
+
+function loadAccom(base) {
+  try {
+    const saved = localStorage.getItem(ACCOM_KEY);
+    return saved ? JSON.parse(saved) : (base || []).map(a => ({ ...a }));
+  } catch {
+    return (base || []).map(a => ({ ...a }));
+  }
+}
+
 async function getDrivingDistance(lat1, lng1, lat2, lng2) {
   const key = `${lat1.toFixed(4)},${lng1.toFixed(4)},${lat2.toFixed(4)},${lng2.toFixed(4)}`;
   if (key in distanceCache) return distanceCache[key];
@@ -238,7 +249,7 @@ function deleteStopFromStorage(id) {
   } catch {}
 }
 
-function renderItinerary(today) {
+function renderItinerary(today, baseAccom) {
   const container = document.getElementById('itinerary');
   if (!container) return;
 
@@ -259,24 +270,47 @@ function renderItinerary(today) {
       custom: true,
     }));
 
-    const all = [...baseItems, ...extra].sort((a, b) => {
+    const middle = [...baseItems, ...extra].sort((a, b) => {
       if (!a.time && !b.time) return 0;
       if (!a.time) return 1;
       if (!b.time) return -1;
       return a.time.localeCompare(b.time);
     });
 
+    const accoms = loadAccom(baseAccom);
+    const startAccom = accoms.find(a => a.checkOutDate === todayVal);
+    const endAccom   = accoms.find(a => a.checkInDate  === todayVal);
+
+    const startItem = startAccom ? [{
+      displayTime: '--:--',
+      title: startAccom.name,
+      _status: 'completed',
+      isAccom: true,
+    }] : [];
+
+    const endItem = endAccom ? [{
+      displayTime: endAccom.checkInTime || '--:--',
+      title: `Check-in — ${endAccom.name}`,
+      _status: computeStatus(endAccom.checkInTime),
+      isAccom: true,
+    }] : [];
+
+    const all = [...startItem, ...middle, ...endItem];
+
     const items = all.map((item) => {
-      const status = computeStatus(item.time);
-      const href = item.url || (item.location
+      const status      = item.isAccom ? item._status : computeStatus(item.time);
+      const displayTime = item.isAccom ? item.displayTime : (item.time || '');
+      const href = !item.isAccom && (item.url || (item.location
         ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`
-        : null);
-      const deleteBtn = item.custom
-        ? `<button class="itinerary__delete" data-id="${item.id}" aria-label="Delete stop">✕</button>`
-        : `<button class="itinerary__delete" data-idx="${item._idx}" aria-label="Delete stop">✕</button>`;
+        : null));
+      const deleteBtn = item.isAccom
+        ? ''
+        : item.custom
+          ? `<button class="itinerary__delete" data-id="${item.id}" aria-label="Delete stop">✕</button>`
+          : `<button class="itinerary__delete" data-idx="${item._idx}" aria-label="Delete stop">✕</button>`;
       return `
       <li class="itinerary__item itinerary__item--${status}">
-        <span class="itinerary__time mono">${item.time || ''}</span>
+        <span class="itinerary__time mono">${displayTime}</span>
         <div class="itinerary__content">
           <span class="itinerary__title">${item.title}</span>
           ${href ? `<a class="itinerary__location" href="${href}" target="_blank" rel="noopener noreferrer">
@@ -335,6 +369,10 @@ function renderItinerary(today) {
       updateHeroKm(today.itinerary);
     });
   }
+
+  window.addEventListener('storage', (e) => {
+    if (e.key === ACCOM_KEY) draw();
+  });
 
   draw();
 }
@@ -544,7 +582,7 @@ async function init() {
 
     tripLocations = data.locations || [];
     renderHero(data);
-    renderItinerary(data.today);
+    renderItinerary(data.today, data.accommodation || []);
     renderProgress(data.today);
     renderMeals(data.today);
     renderReflection(data.today);

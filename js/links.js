@@ -9,34 +9,73 @@ import {
 
 let countdownInterval = null;
 
-function renderLinkItem(item) {
-  return `
-    <li class="link-item">
-      <a href="${item.url}" class="link-item__title" ${
-        item.url.startsWith('http') ? 'target="_blank" rel="noopener noreferrer"' : ''
-      }>${item.title}</a>
-      <span class="link-item__note">${item.note}</span>
-    </li>
-  `;
+function parseCoordsFromUrl(url) {
+  if (!url) return null;
+  try {
+    let m = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+    if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+    m = url.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+    if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+    m = url.match(/[?&]ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+    if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+  } catch {}
+  return null;
 }
 
-function renderCategory(category) {
-  const items = category.items.map(renderLinkItem).join('');
+const distanceCache = {};
 
-  return `
-    <section class="card link-category" id="${category.id}">
-      <h2 class="link-category__title label">${category.label}</h2>
-      <ul class="link-list">${items}</ul>
-    </section>
-  `;
+async function getDrivingDistance(lat1, lng1, lat2, lng2) {
+  const key = `${lat1.toFixed(4)},${lng1.toFixed(4)},${lat2.toFixed(4)},${lng2.toFixed(4)}`;
+  if (key in distanceCache) return distanceCache[key];
+  try {
+    const res = await fetch(
+      `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=false`
+    );
+    const json = await res.json();
+    if (json.code === 'Ok' && json.routes.length > 0) {
+      const km = json.routes[0].distance / 1000;
+      distanceCache[key] = km;
+      return km;
+    }
+  } catch {}
+  distanceCache[key] = null;
+  return null;
 }
 
-function renderLinks(links) {
-  const container = document.getElementById('links-grid');
-  if (!container) return;
+async function updateKmStat(stops) {
+  const withCoords = stops.map(s => ({
+    status: s.status,
+    coords: parseCoordsFromUrl(s.url),
+  }));
 
-  container.innerHTML = links.categories.map(renderCategory).join('');
+  let totalKm = 0;
+  let doneKm = 0;
+  let anyData = false;
+
+  for (let i = 0; i < withCoords.length - 1; i++) {
+    const from = withCoords[i];
+    const to = withCoords[i + 1];
+    if (!from.coords || !to.coords) continue;
+    const dist = await getDrivingDistance(
+      from.coords.lat, from.coords.lng,
+      to.coords.lat, to.coords.lng
+    );
+    if (dist === null) continue;
+    anyData = true;
+    totalKm += dist;
+    if (from.status === 'completed' && to.status === 'completed') {
+      doneKm += dist;
+    }
+  }
+
+  if (anyData) {
+    const doneEl = document.getElementById('stat-km-done');
+    const totalEl = document.getElementById('stat-km-total');
+    if (doneEl) doneEl.textContent = Math.round(doneKm);
+    if (totalEl) totalEl.textContent = Math.round(totalKm);
+  }
 }
+
 
 function renderCountdown(trip) {
   function update() {
@@ -57,6 +96,120 @@ function renderCountdown(trip) {
 }
 
 const STOPS_KEY = 'island-stops-v1';
+
+const ACCOM_KEY = 'island-accommodation-v1';
+
+function loadAccom(base) {
+  try {
+    const saved = localStorage.getItem(ACCOM_KEY);
+    return saved ? JSON.parse(saved) : base.map(a => ({ ...a }));
+  } catch {
+    return base.map(a => ({ ...a }));
+  }
+}
+
+function saveAccom(accoms) {
+  localStorage.setItem(ACCOM_KEY, JSON.stringify(accoms));
+}
+
+const ACCOM_PERSONS = ['Leonie', 'Nella', 'Letizia'];
+const ACCOM_PERSON_COLOR = { Leonie: 'var(--accent-lime)', Nella: 'var(--accent-cyan)', Letizia: 'var(--accent-magenta)' };
+
+function renderAccommodation(base) {
+  const container = document.getElementById('accommodation');
+  if (!container) return;
+
+  let accoms = loadAccom(base);
+  let formPerson = '';
+
+  function isTonight(a) {
+    const today = new Date().toISOString().slice(0, 10);
+    return today >= a.checkInDate && today < a.checkOutDate;
+  }
+
+  function draw() {
+    const items = accoms.map((a, i) => {
+      const tonight = isTonight(a);
+      const mapsHref = a.url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.name + ' Iceland')}`;
+      const [cy, cm, cd] = a.checkInDate.split('-');
+      const checkInStr = `${cd}.${cm}.${cy} · ${a.checkInTime || '--:--'}`;
+      const personColor = a.person ? ACCOM_PERSON_COLOR[a.person] : null;
+      const personBadge = a.person
+        ? `<span class="accom__person-badge" style="color:${personColor};border-color:${personColor}">${a.person}</span>`
+        : '';
+      return `
+        <div class="accom${tonight ? ' accom--tonight' : ''}">
+          <div class="accom__info">
+            <p class="accom__name">
+              <a class="stop-maps-link" href="${mapsHref}" target="_blank" rel="noopener noreferrer">${a.name}</a>
+              ${tonight ? '<span class="accom__tonight-badge">Tonight</span>' : ''}
+            </p>
+            <p class="accom__meta">Check-in ${checkInStr}</p>
+          </div>
+          ${personBadge}
+          <button class="stop-delete" data-index="${i}" aria-label="Delete accommodation">✕</button>
+        </div>
+      `;
+    }).join('');
+
+    const personBtns = ACCOM_PERSONS.map(p => {
+      const color = ACCOM_PERSON_COLOR[p];
+      const active = formPerson === p;
+      return `<button type="button" class="accom__person-btn${active ? ' accom__person-btn--active' : ''}" data-person="${p}" style="--pc:${color}">${p}</button>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="accoms">${items}</div>
+      <form class="stop-add-form" id="accom-add-form" style="flex-wrap:wrap;">
+        <input class="stop-add-input" type="text" placeholder="Name (e.g. City Hotel)" id="accom-name" required />
+        <input class="stop-add-input stop-add-input--day" type="date" id="accom-checkin" required />
+        <input class="stop-add-input stop-add-input--day" type="time" id="accom-checkin-time" />
+        <input class="stop-add-input stop-add-input--day" type="date" id="accom-checkout" required />
+        <input class="stop-add-input" type="url" placeholder="Maps URL (optional)" id="accom-url" />
+        <div class="accom__person-picker">${personBtns}</div>
+        <button class="stop-add-btn" type="submit">+ Add</button>
+      </form>
+    `;
+
+    ['#accom-checkin', '#accom-checkin-time', '#accom-checkout'].forEach(id => {
+      const el = container.querySelector(id);
+      if (!el) return;
+      el.addEventListener('change', () => el.classList.toggle('has-value', !!el.value));
+    });
+
+    container.querySelectorAll('.accom__person-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        formPerson = formPerson === btn.dataset.person ? '' : btn.dataset.person;
+        draw();
+      });
+    });
+
+    container.querySelectorAll('.stop-delete').forEach(btn => {
+      btn.addEventListener('click', () => {
+        accoms.splice(Number(btn.dataset.index), 1);
+        saveAccom(accoms);
+        draw();
+      });
+    });
+
+    container.querySelector('#accom-add-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const name = container.querySelector('#accom-name').value.trim();
+      const checkInDate = container.querySelector('#accom-checkin').value;
+      const checkInTime = container.querySelector('#accom-checkin-time').value || null;
+      const checkOutDate = container.querySelector('#accom-checkout').value;
+      const url = container.querySelector('#accom-url').value.trim() || null;
+      if (!name || !checkInDate || !checkOutDate) return;
+      accoms.push({ id: `acc-${Date.now()}`, name, person: formPerson, checkInDate, checkInTime, checkOutDate, url });
+      accoms.sort((a, b) => a.checkInDate.localeCompare(b.checkInDate));
+      saveAccom(accoms);
+      formPerson = '';
+      draw();
+    });
+  }
+
+  draw();
+}
 
 function loadStops(base) {
   try {
@@ -84,9 +237,13 @@ function renderMilestones(base) {
 
   function draw() {
     const items = stops.map((m, i) => {
-      const when = m.date
-        ? `${m.date}${m.time ? ' · ' + m.time : ''}`
-        : (m.day ? `Day ${m.day}` : '');
+      let when = '';
+      if (m.date) {
+        const [my, mm, md] = m.date.split('-');
+        when = `${md}.${mm}.${my} · ${m.time || '--:--'}`;
+      } else if (m.day) {
+        when = `Day ${m.day}`;
+      }
       const href = mapsUrl(m.title, m.url);
       return `
       <div class="milestone milestone--${m.status}">
@@ -149,16 +306,27 @@ function renderMilestones(base) {
   draw();
 }
 
-function renderStatistics(stats, trip) {
+function renderStatistics(stats, trip, milestones) {
   const container = document.getElementById('statistics');
   if (!container) return;
 
-  const totalDays = daysBetween(trip.startDate, trip.endDate);
-  const accents = ['cyan', 'lime', 'magenta', 'magenta', 'cyan', 'lime'];
+  const stops = loadStops(milestones);
+  const stopsTotal = stops.length;
+  const stopsDone = stops.filter(s => s.status === 'completed').length;
+
+  const start = new Date(trip.startDate + 'T00:00:00');
+  const end = new Date(trip.endDate + 'T00:00:00');
+  const totalDays = Math.round((end - start) / 86400000) + 1;
+
+  const now = new Date();
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dayNumber = Math.min(Math.max(Math.floor((todayMidnight - start) / 86400000) + 1, 1), totalDays);
+
+  const accents = ['cyan', 'lime', 'magenta', 'cyan', 'lime', 'magenta'];
   const units = [
-    { value: `${stats.daysElapsed}<span class="hero__stat-sep">/</span>${totalDays}`, label: 'Days' },
-    { value: `${stats.distanceCovered}<span class="hero__stat-sep">/</span>${stats.totalDistance}`, label: 'km' },
-    { value: `${stats.stopsDone}<span class="hero__stat-sep">/</span>${stats.stopsTotal}`, label: 'Stops' },
+    { value: `${dayNumber}<span class="hero__stat-sep">/</span>${totalDays}`, label: 'Days' },
+    { value: `<span id="stat-km-done">—</span><span class="hero__stat-sep">/</span><span id="stat-km-total">—</span>`, label: 'km' },
+    { value: `${stopsDone}<span class="hero__stat-sep">/</span>${stopsTotal}`, label: 'Stops' },
     { value: `<span id="stat-cd-days">--</span>`, label: 'Days' },
     { value: `<span id="stat-cd-hours">--</span>`, label: 'Hours' },
     { value: `<span id="stat-cd-min">--</span>`, label: 'Min' },
@@ -188,14 +356,9 @@ async function init() {
 
     renderCountdown(data.trip);
     renderMilestones(data.milestones);
-    renderStatistics(data.statistics, data.trip);
-    renderLinks(data.links);
-
-    const countEl = document.getElementById('link-count');
-    if (countEl) {
-      const total = data.links.categories.reduce((sum, cat) => sum + cat.items.length, 0);
-      countEl.textContent = `${total} links`;
-    }
+    renderAccommodation(data.accommodation || []);
+    renderStatistics(data.statistics, data.trip, data.milestones);
+    updateKmStat(loadStops(data.milestones));
   } catch (err) {
     if (status) showError(status, err.message);
   }
