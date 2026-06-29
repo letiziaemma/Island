@@ -44,24 +44,20 @@ function renderCountdown(trip) {
 
   function update() {
     const { days, hours, minutes, seconds } = daysUntil(trip.endDate);
+    const accents = ['magenta', 'cyan', 'lime'];
+    const units = [
+      { value: days, label: 'Days' },
+      { value: String(hours).padStart(2, '0'), label: 'Hours' },
+      { value: String(minutes).padStart(2, '0'), label: 'Min' },
+    ];
     container.innerHTML = `
-      <div class="countdown">
-        <div class="countdown__unit">
-          <span class="countdown__number mono" data-unit="days">${days}</span>
-          <span class="countdown__label">Days</span>
-        </div>
-        <div class="countdown__unit">
-          <span class="countdown__number mono" data-unit="hours">${String(hours).padStart(2, '0')}</span>
-          <span class="countdown__label">Hours</span>
-        </div>
-        <div class="countdown__unit">
-          <span class="countdown__number mono" data-unit="minutes">${String(minutes).padStart(2, '0')}</span>
-          <span class="countdown__label">Min</span>
-        </div>
-        <div class="countdown__unit">
-          <span class="countdown__number mono" data-unit="seconds">${String(seconds).padStart(2, '0')}</span>
-          <span class="countdown__label">Sec</span>
-        </div>
+      <div class="hero__stats" style="margin-top: 0; padding-bottom: 0; grid-template-columns: repeat(3, 1fr);">
+        ${units.map((u, i) => `
+          <div class="hero__stat">
+            <span class="hero__stat-value hero__stat-value--${accents[i]}">${u.value}</span>
+            <span class="hero__stat-label">${u.label}</span>
+          </div>
+        `).join('')}
       </div>
     `;
   }
@@ -97,41 +93,24 @@ function renderStatistics(stats, trip) {
   if (!container) return;
 
   const totalDays = daysBetween(trip.startDate, trip.endDate);
+  const accents = ['cyan', 'lime', 'magenta', 'cyan', 'lime', 'magenta'];
+  const units = [
+    { value: `${stats.daysElapsed}<span class="hero__stat-sep">/</span>${totalDays}`, label: 'Days' },
+    { value: `${stats.distanceCovered}<span class="hero__stat-sep">/</span>${stats.totalDistance}`, label: 'km' },
+    { value: stats.waterfalls, label: 'Waterfalls' },
+    { value: stats.photosTaken, label: 'Photos' },
+    { value: stats.coffeesConsumed, label: 'Coffees' },
+    { value: stats.daysRemaining, label: 'Days left' },
+  ];
 
   container.innerHTML = `
-    <div class="stats-grid">
-      <div class="stat">
-        <p class="stat__value mono">${stats.daysElapsed}</p>
-        <p class="stat__label">Days elapsed</p>
-      </div>
-      <div class="stat">
-        <p class="stat__value mono">${stats.daysRemaining}</p>
-        <p class="stat__label">Days remaining</p>
-      </div>
-      <div class="stat">
-        <p class="stat__value mono">${stats.distanceCovered}</p>
-        <p class="stat__label">km covered</p>
-      </div>
-      <div class="stat">
-        <p class="stat__value mono">${stats.totalDistance}</p>
-        <p class="stat__label">km total</p>
-      </div>
-      <div class="stat">
-        <p class="stat__value mono">${stats.waterfalls}</p>
-        <p class="stat__label">Waterfalls</p>
-      </div>
-      <div class="stat">
-        <p class="stat__value mono">${stats.photosTaken}</p>
-        <p class="stat__label">Photos</p>
-      </div>
-      <div class="stat">
-        <p class="stat__value mono">${stats.coffeesConsumed}</p>
-        <p class="stat__label">Coffees</p>
-      </div>
-      <div class="stat">
-        <p class="stat__value mono">${totalDays}</p>
-        <p class="stat__label">Trip days</p>
-      </div>
+    <div class="hero__stats" style="margin-top: 0; padding-bottom: 0; grid-template-columns: repeat(3, 1fr);">
+      ${units.map((u, i) => `
+        <div class="hero__stat">
+          <span class="hero__stat-value hero__stat-value--${accents[i]}">${u.value}</span>
+          <span class="hero__stat-label">${u.label}</span>
+        </div>
+      `).join('')}
     </div>
   `;
 }

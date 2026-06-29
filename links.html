@@ -28,16 +28,13 @@
     <div id="page-status" class="container" role="status"></div>
 
     <header class="page-header container">
-      <p class="label">Resources</p>
-      <h1 class="display page-header__title">Where do I find it?</h1>
-      <p class="page-header__subtitle">
-        Bookings, maps, and useful references.
-        <span class="mono" id="link-count"></span>
-      </p>
+      <p class="label" style="color: var(--accent-canyon);">THE TRIP MADE IT OUT OF THE GROUPCHAT</p>
+      <h1 class="display page-header__title">Overview</h1>
+      <p class="page-header__subtitle">Bookings. Maps. References. Everything we should know.</p>
     </header>
 
     <section class="container section--tight" aria-label="Trip overview">
-      <div class="grid" style="gap: var(--space-lg); margin-bottom: var(--space-xl);">
+      <div class="grid grid-2" style="gap: var(--space-lg); margin-bottom: var(--space-xl);">
         <section class="card" aria-labelledby="countdown-heading">
           <div class="card__header">
             <h2 class="card__title" id="countdown-heading">Countdown</h2>
@@ -46,21 +43,21 @@
           <div id="countdown"></div>
         </section>
 
-        <div class="grid grid-2">
-          <section class="card" aria-labelledby="milestones-heading">
-            <div class="card__header">
-              <h2 class="card__title" id="milestones-heading">Trip milestones</h2>
-            </div>
-            <div id="milestones"></div>
-          </section>
+        <section class="card" aria-labelledby="stats-heading">
+          <div class="card__header">
+            <h2 class="card__title" id="stats-heading">Trip statistics</h2>
+          </div>
+          <div id="statistics"></div>
+        </section>
+      </div>
 
-          <section class="card" aria-labelledby="stats-heading">
-            <div class="card__header">
-              <h2 class="card__title" id="stats-heading">Trip statistics</h2>
-            </div>
-            <div id="statistics"></div>
-          </section>
-        </div>
+      <div class="grid" style="gap: var(--space-lg); margin-bottom: var(--space-xl);">
+        <section class="card" aria-labelledby="milestones-heading">
+          <div class="card__header">
+            <h2 class="card__title" id="milestones-heading">Trip milestones</h2>
+          </div>
+          <div id="milestones"></div>
+        </section>
       </div>
     </section>
 
