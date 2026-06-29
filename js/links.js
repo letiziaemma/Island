@@ -123,7 +123,7 @@ function renderAccommodation(base) {
   let formPerson = '';
 
   function isTonight(a) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateStr(new Date());
     return today >= a.checkInDate && today < a.checkOutDate;
   }
 
@@ -224,6 +224,27 @@ function saveStops(stops) {
   localStorage.setItem(STOPS_KEY, JSON.stringify(stops));
 }
 
+function localDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function computeStopStatus(stop) {
+  if (!stop.date) return stop.status || 'upcoming';
+  const now = new Date();
+  const deviceDate = localDateStr(now);
+  if (deviceDate > stop.date) return 'completed';
+  if (deviceDate < stop.date) return 'upcoming';
+  if (!stop.time) return 'upcoming';
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const [h, m] = stop.time.split(':').map(Number);
+  const stopMin = h * 60 + m;
+  if (nowMin >= stopMin + 60) return 'completed';
+  if (nowMin >= stopMin) return 'current';
+  return 'upcoming';
+}
+
+const STOP_STATUS_LABELS = { completed: 'Done', current: 'Now', upcoming: 'Next' };
+
 function renderMilestones(base) {
   const container = document.getElementById('milestones');
   if (!container) return;
@@ -237,6 +258,7 @@ function renderMilestones(base) {
 
   function draw() {
     const items = stops.map((m, i) => {
+      const status = computeStopStatus(m);
       let when = '';
       if (m.date) {
         const [my, mm, md] = m.date.split('-');
@@ -246,7 +268,7 @@ function renderMilestones(base) {
       }
       const href = mapsUrl(m.title, m.url);
       return `
-      <div class="milestone milestone--${m.status}">
+      <div class="milestone milestone--${status}">
         <span class="milestone__number mono">${i + 1}</span>
         <div class="milestone__info">
           <p class="milestone__title">
@@ -254,7 +276,7 @@ function renderMilestones(base) {
           </p>
           ${when ? `<p class="milestone__day">${when}</p>` : ''}
         </div>
-        <span class="milestone__badge milestone__badge--${m.status}">${m.status}</span>
+        <span class="milestone__badge milestone__badge--${status}">${STOP_STATUS_LABELS[status] || status}</span>
         <button class="stop-delete" data-index="${i}" aria-label="Delete stop">✕</button>
       </div>
     `;
@@ -312,7 +334,7 @@ function renderStatistics(stats, trip, milestones) {
 
   const stops = loadStops(milestones);
   const stopsTotal = stops.length;
-  const stopsDone = stops.filter(s => s.status === 'completed').length;
+  const stopsDone = stops.filter(s => computeStopStatus(s) === 'completed').length;
 
   const start = new Date(trip.startDate + 'T00:00:00');
   const end = new Date(trip.endDate + 'T00:00:00');

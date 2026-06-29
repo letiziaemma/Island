@@ -14,6 +14,10 @@ const STATUS_LABELS = {
 let tripLocations = [];
 const distanceCache = {};
 
+function localDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const ACCOM_KEY = 'island-accommodation-v1';
 
 function loadAccom(base) {
@@ -56,7 +60,7 @@ function getCoordsForItem(item, customStops) {
 }
 
 async function updateHeroKm(baseItinerary) {
-  const deviceDate = new Date().toISOString().slice(0, 10);
+  const deviceDate = localDateStr(new Date());
   const visibleItems = getVisibleItinerary(baseItinerary);
 
   let customStops = [];
@@ -107,7 +111,7 @@ async function updateHeroKm(baseItinerary) {
 }
 
 function computeTodayStopCounts(baseItinerary) {
-  const deviceDate = new Date().toISOString().slice(0, 10);
+  const deviceDate = localDateStr(new Date());
   const visibleItems = getVisibleItinerary(baseItinerary);
 
   let customStops = [];
@@ -192,7 +196,7 @@ function computeStatus(time) {
 }
 
 function getVisibleItinerary(itinerary) {
-  const date = new Date().toISOString().slice(0, 10);
+  const date = localDateStr(new Date());
   const hidden = getHiddenIndices(date);
   return itinerary.filter((_, i) => !hidden.includes(i));
 }
@@ -201,7 +205,7 @@ function getTodayStops() {
   try {
     const saved = localStorage.getItem('island-stops-v1');
     if (!saved) return [];
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateStr(new Date());
     return JSON.parse(saved).filter(s => s.date === today);
   } catch {
     return [];
@@ -254,7 +258,7 @@ function renderItinerary(today, baseAccom) {
   if (!container) return;
 
   function draw() {
-    const todayVal = new Date().toISOString().slice(0, 10);
+    const todayVal = localDateStr(new Date());
     const hiddenIndices = getHiddenIndices(todayVal);
 
     const baseItems = today.itinerary
