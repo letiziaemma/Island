@@ -2,10 +2,10 @@
   "trip": {
     "title": "Iceland Expedition",
     "subtitle": "Ring Road & Highlands",
-    "startDate": "2026-07-01",
-    "endDate": "2026-07-10",
-    "currentDay": 3,
-    "totalDays": 10,
+    "startDate": "2026-06-30",
+    "endDate": "2026-07-12",
+    "currentDay": 1,
+    "totalDays": 13,
     "timezone": "Atlantic/Reykjavik",
     "header": {
       "eyebrow": ["ROADTRIP", "3 FRIENDS", "SUMMER"],
@@ -206,6 +206,8 @@
     "daysRemaining": 7,
     "totalDistance": 1350,
     "distanceCovered": 405,
+    "stopsDone": 12,
+    "stopsTotal": 40,
     "waterfalls": 4,
     "photosTaken": 127,
     "coffeesConsumed": 9

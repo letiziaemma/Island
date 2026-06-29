@@ -11,6 +11,118 @@ const STATUS_LABELS = {
   upcoming: 'Next',
 };
 
+let tripLocations = [];
+const distanceCache = {};
+
+async function getDrivingDistance(lat1, lng1, lat2, lng2) {
+  const key = `${lat1.toFixed(4)},${lng1.toFixed(4)},${lat2.toFixed(4)},${lng2.toFixed(4)}`;
+  if (key in distanceCache) return distanceCache[key];
+  try {
+    const res = await fetch(
+      `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=false`
+    );
+    const json = await res.json();
+    if (json.code === 'Ok' && json.routes.length > 0) {
+      const km = json.routes[0].distance / 1000;
+      distanceCache[key] = km;
+      return km;
+    }
+  } catch {}
+  distanceCache[key] = null;
+  return null;
+}
+
+function getCoordsForItem(item, customStops) {
+  if (item.custom) {
+    const s = customStops.find(c => c.id === item.id);
+    return s?.lat && s?.lng ? { lat: s.lat, lng: s.lng } : null;
+  }
+  const match = tripLocations.find(loc =>
+    item.location?.toLowerCase().includes(loc.name.toLowerCase()) ||
+    item.title?.toLowerCase().includes(loc.name.toLowerCase())
+  );
+  return match ? { lat: match.lat, lng: match.lng } : null;
+}
+
+async function updateHeroKm(baseItinerary) {
+  const deviceDate = new Date().toISOString().slice(0, 10);
+  const visibleItems = getVisibleItinerary(baseItinerary);
+
+  let customStops = [];
+  try {
+    const saved = localStorage.getItem('island-stops-v1');
+    if (saved) customStops = JSON.parse(saved).filter(s => s.date === deviceDate);
+  } catch {}
+
+  const extra = customStops.map(s => ({
+    id: s.id, time: s.time || null, title: s.title, location: s.title, custom: true,
+  }));
+
+  const all = [...visibleItems, ...extra].sort((a, b) => {
+    if (!a.time && !b.time) return 0;
+    if (!a.time) return 1;
+    if (!b.time) return -1;
+    return a.time.localeCompare(b.time);
+  }).map(item => ({
+    ...item,
+    status: computeStatus(item.time),
+    coords: getCoordsForItem(item, customStops),
+  }));
+
+  let totalKm = 0;
+  let doneKm = 0;
+  let anyCoords = false;
+
+  for (let i = 0; i < all.length - 1; i++) {
+    const from = all[i].coords;
+    const to = all[i + 1].coords;
+    if (!from || !to) continue;
+    const dist = await getDrivingDistance(from.lat, from.lng, to.lat, to.lng);
+    if (dist === null) continue;
+    anyCoords = true;
+    totalKm += dist;
+    if (all[i].status === 'completed' && all[i + 1].status === 'completed') {
+      doneKm += dist;
+    }
+  }
+
+  const doneEl = document.getElementById('hero-km-done');
+  const totalEl = document.getElementById('hero-km-total');
+  if (anyCoords) {
+    if (doneEl) doneEl.textContent = Math.round(doneKm);
+    if (totalEl) totalEl.textContent = Math.round(totalKm);
+  }
+  // leave "—/—" untouched if no coord data was found
+}
+
+function computeTodayStopCounts(baseItinerary) {
+  const deviceDate = new Date().toISOString().slice(0, 10);
+  const visibleItems = getVisibleItinerary(baseItinerary);
+
+  let customStops = [];
+  try {
+    const saved = localStorage.getItem('island-stops-v1');
+    if (saved) customStops = JSON.parse(saved).filter(s => s.date === deviceDate);
+  } catch {}
+
+  const allStops = [
+    ...visibleItems.map(i => ({ time: i.time })),
+    ...customStops.map(s => ({ time: s.time || null })),
+  ];
+
+  const total = allStops.length;
+  const done = allStops.filter(s => computeStatus(s.time) === 'completed').length;
+  return { done, total };
+}
+
+function updateHeroStopCount(todayItinerary) {
+  const { done, total } = computeTodayStopCounts(todayItinerary);
+  const doneEl = document.getElementById('hero-stops-done');
+  const totalEl = document.getElementById('hero-stops-total');
+  if (doneEl) doneEl.textContent = done;
+  if (totalEl) totalEl.textContent = total;
+}
+
 function renderHero(data) {
   const container = document.getElementById('hero');
   if (!container) return;
@@ -19,10 +131,21 @@ function renderHero(data) {
   const { header } = trip;
   const eyebrow = header.eyebrow.join(' · ');
 
+  const { done, total } = computeTodayStopCounts(today.itinerary);
+
+  const start = new Date(trip.startDate + 'T00:00:00');
+  const now = new Date();
+  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dayNumber = Math.min(
+    Math.max(Math.floor((todayMidnight - start) / 86400000) + 1, 1),
+    trip.totalDays
+  );
+  const totalDays = Math.round((new Date(trip.endDate + 'T00:00:00') - start) / 86400000) + 1;
+
   const dynamicValues = [
-    `${today.progress.activitiesDone}<span class="hero__stat-sep">/</span>${today.progress.activitiesTotal}`,
-    `${statistics.distanceCovered}<span class="hero__stat-sep">/</span>${statistics.totalDistance}`,
-    `${today.dayNumber}<span class="hero__stat-sep">/</span>${trip.totalDays}`,
+    `<span id="hero-stops-done">${done}</span><span class="hero__stat-sep">/</span><span id="hero-stops-total">${total}</span>`,
+    `<span id="hero-km-done">—</span><span class="hero__stat-sep">/</span><span id="hero-km-total">—</span>`,
+    `${dayNumber}<span class="hero__stat-sep">/</span>${totalDays}`,
   ];
 
   const stats = header.stats
@@ -46,35 +169,174 @@ function renderHero(data) {
   `;
 }
 
+function computeStatus(time) {
+  if (!time) return 'upcoming';
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const [h, m] = time.split(':').map(Number);
+  const stopMin = h * 60 + m;
+  if (nowMin >= stopMin + 60) return 'completed';
+  if (nowMin >= stopMin) return 'current';
+  return 'upcoming';
+}
+
+function getVisibleItinerary(itinerary) {
+  const date = new Date().toISOString().slice(0, 10);
+  const hidden = getHiddenIndices(date);
+  return itinerary.filter((_, i) => !hidden.includes(i));
+}
+
+function getTodayStops() {
+  try {
+    const saved = localStorage.getItem('island-stops-v1');
+    if (!saved) return [];
+    const today = new Date().toISOString().slice(0, 10);
+    return JSON.parse(saved).filter(s => s.date === today);
+  } catch {
+    return [];
+  }
+}
+
+const HIDDEN_KEY = 'island-hidden-itinerary';
+
+function getHiddenIndices(date) {
+  try {
+    const saved = localStorage.getItem(HIDDEN_KEY);
+    return saved ? (JSON.parse(saved)[date] || []) : [];
+  } catch { return []; }
+}
+
+function setHiddenIndices(date, indices) {
+  try {
+    const saved = localStorage.getItem(HIDDEN_KEY);
+    const all = saved ? JSON.parse(saved) : {};
+    all[date] = indices;
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify(all));
+  } catch {}
+}
+
+function saveStopToStorage(stop) {
+  try {
+    const saved = localStorage.getItem('island-stops-v1');
+    const stops = saved ? JSON.parse(saved) : [];
+    stops.push(stop);
+    stops.sort((a, b) => {
+      const ak = `${a.date || '9999-99-99'} ${a.time || '99:99'}`;
+      const bk = `${b.date || '9999-99-99'} ${b.time || '99:99'}`;
+      return ak.localeCompare(bk);
+    });
+    localStorage.setItem('island-stops-v1', JSON.stringify(stops));
+  } catch {}
+}
+
+function deleteStopFromStorage(id) {
+  try {
+    const saved = localStorage.getItem('island-stops-v1');
+    if (!saved) return;
+    const stops = JSON.parse(saved).filter(s => s.id !== id);
+    localStorage.setItem('island-stops-v1', JSON.stringify(stops));
+  } catch {}
+}
+
 function renderItinerary(today) {
   const container = document.getElementById('itinerary');
   if (!container) return;
 
-  const items = today.itinerary
-    .map((item) => {
-      const href = item.url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`;
+  function draw() {
+    const todayVal = new Date().toISOString().slice(0, 10);
+    const hiddenIndices = getHiddenIndices(todayVal);
+
+    const baseItems = today.itinerary
+      .map((item, idx) => ({ ...item, _idx: idx, custom: false }))
+      .filter(item => !hiddenIndices.includes(item._idx));
+
+    const extra = getTodayStops().map(s => ({
+      id: s.id,
+      time: s.time || null,
+      title: s.title,
+      location: s.title,
+      url: s.url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.title + ' Iceland')}`,
+      custom: true,
+    }));
+
+    const all = [...baseItems, ...extra].sort((a, b) => {
+      if (!a.time && !b.time) return 0;
+      if (!a.time) return 1;
+      if (!b.time) return -1;
+      return a.time.localeCompare(b.time);
+    });
+
+    const items = all.map((item) => {
+      const status = computeStatus(item.time);
+      const href = item.url || (item.location
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`
+        : null);
+      const deleteBtn = item.custom
+        ? `<button class="itinerary__delete" data-id="${item.id}" aria-label="Delete stop">✕</button>`
+        : `<button class="itinerary__delete" data-idx="${item._idx}" aria-label="Delete stop">✕</button>`;
       return `
-      <li class="itinerary__item itinerary__item--${item.status}">
-        <span class="itinerary__time mono">${item.time}</span>
+      <li class="itinerary__item itinerary__item--${status}">
+        <span class="itinerary__time mono">${item.time || ''}</span>
         <div class="itinerary__content">
           <span class="itinerary__title">${item.title}</span>
-          <a class="itinerary__location" href="${href}" target="_blank" rel="noopener noreferrer">
+          ${href ? `<a class="itinerary__location" href="${href}" target="_blank" rel="noopener noreferrer">
             ${item.location}
             <svg class="itinerary__location-icon" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path d="M1 9L9 1M9 1H3M9 1V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-          </a>
+          </a>` : ''}
         </div>
-        <span class="itinerary__status itinerary__status--${item.status}">
-          ${STATUS_LABELS[item.status] || item.status}
+        <span class="itinerary__status itinerary__status--${status}">
+          ${STATUS_LABELS[status] || status}
         </span>
         <span class="itinerary__marker" aria-hidden="true"></span>
-      </li>
-    `;
-    })
-    .join('');
+        ${deleteBtn}
+      </li>`;
+    }).join('');
 
-  container.innerHTML = `<ul class="itinerary">${items}</ul>`;
+    container.innerHTML = `
+      <ul class="itinerary">${items}</ul>
+      <form class="stop-add-form" id="itinerary-add-form" style="margin-top: var(--space-md);">
+        <input class="stop-add-input" type="text" placeholder="Stop name" id="itin-title" required />
+        <input class="stop-add-input stop-add-input--day" type="time" id="itin-time" />
+        <input class="stop-add-input" type="url" placeholder="Maps URL (optional)" id="itin-url" />
+        <button class="stop-add-btn" type="submit">+ Add</button>
+      </form>
+    `;
+
+    container.querySelectorAll('.itinerary__delete').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.id) {
+          deleteStopFromStorage(btn.dataset.id);
+        } else if (btn.dataset.idx !== undefined) {
+          const hidden = getHiddenIndices(todayVal);
+          if (!hidden.includes(Number(btn.dataset.idx))) {
+            setHiddenIndices(todayVal, [...hidden, Number(btn.dataset.idx)]);
+          }
+        }
+        draw();
+        updateHeroStopCount(today.itinerary);
+        updateHeroKm(today.itinerary);
+      });
+    });
+
+    const form = container.querySelector('#itinerary-add-form');
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const title = form.querySelector('#itin-title').value.trim();
+      const date = todayVal;
+      const time = form.querySelector('#itin-time').value || null;
+      const url = form.querySelector('#itin-url').value.trim() || null;
+      if (!title) return;
+      const stop = { id: `u-${Date.now()}`, title, date, time, url, status: 'upcoming' };
+      saveStopToStorage(stop);
+      draw();
+      updateHeroStopCount(today.itinerary);
+      updateHeroKm(today.itinerary);
+    });
+  }
+
+  draw();
 }
 
 function renderProgress(today) {
@@ -191,56 +453,6 @@ function renderMeals(today) {
 }
 
 
-function initMap(locations) {
-  const mapEl = document.getElementById('map');
-  if (!mapEl || typeof L === 'undefined') return;
-
-  const map = L.map(mapEl, {
-    scrollWheelZoom: false,
-  });
-
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-    subdomains: 'abcd',
-    maxZoom: 19,
-  }).addTo(map);
-
-  const bounds = [];
-  const coords = locations.map((loc) => [loc.lat, loc.lng]);
-
-  if (coords.length > 1) {
-    L.polyline(coords, {
-      color: '#22d3ee',
-      weight: 2,
-      opacity: 0.35,
-      dashArray: '6 6',
-    }).addTo(map);
-  }
-
-  locations.forEach((loc) => {
-    const marker = L.circleMarker([loc.lat, loc.lng], {
-      radius: 8,
-      fillColor: '#22d3ee',
-      color: '#0b0c12',
-      weight: 2,
-      opacity: 1,
-      fillOpacity: 0.85,
-    }).addTo(map);
-
-    const mapsUrl = loc.url || `https://www.google.com/maps?q=${loc.lat},${loc.lng}`;
-    marker.bindPopup(`
-      <strong>${loc.name}</strong><br>
-      <span style="color:#8b8f9c">${loc.type}</span><br>
-      <a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" style="color:#22d3ee;font-size:0.75rem;">Open in Maps ↗</a>
-    `);
-    bounds.push([loc.lat, loc.lng]);
-  });
-
-  if (bounds.length > 0) {
-    map.fitBounds(bounds, { padding: [40, 40] });
-  }
-}
 
 const REFLECTION_USERS = ['Nella', 'Leonie', 'Letizia'];
 const REFLECTION_USER_COLOR = { Nella: 'var(--accent-cyan)', Leonie: 'var(--accent-lime)', Letizia: 'var(--accent-magenta)' };
@@ -330,12 +542,13 @@ async function init() {
     const data = await fetchTripData();
     if (status) status.innerHTML = '';
 
+    tripLocations = data.locations || [];
     renderHero(data);
     renderItinerary(data.today);
     renderProgress(data.today);
     renderMeals(data.today);
     renderReflection(data.today);
-    initMap(data.locations);
+    updateHeroKm(data.today.itinerary);
   } catch (err) {
     if (status) showError(status, err.message);
   }

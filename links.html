@@ -34,27 +34,15 @@
     </header>
 
     <section class="container section--tight" aria-label="Trip overview">
-      <div class="grid grid-2" style="gap: var(--space-lg); margin-bottom: var(--space-xl);">
-        <section class="card" aria-labelledby="countdown-heading">
-          <div class="card__header">
-            <h2 class="card__title" id="countdown-heading">Countdown</h2>
-          </div>
-          <p class="label" style="margin-bottom: var(--space-md);">Time until trip ends</p>
-          <div id="countdown"></div>
-        </section>
-
-        <section class="card" aria-labelledby="stats-heading">
-          <div class="card__header">
-            <h2 class="card__title" id="stats-heading">Trip statistics</h2>
-          </div>
-          <div id="statistics"></div>
-        </section>
-      </div>
+      <section aria-labelledby="stats-heading" style="margin-bottom: var(--space-xl);">
+        <h2 class="card__title" id="stats-heading" style="margin-bottom: var(--space-md);">Trip statistics</h2>
+        <div id="statistics"></div>
+      </section>
 
       <div class="grid" style="gap: var(--space-lg); margin-bottom: var(--space-xl);">
         <section class="card" aria-labelledby="milestones-heading">
           <div class="card__header">
-            <h2 class="card__title" id="milestones-heading">Trip milestones</h2>
+            <h2 class="card__title" id="milestones-heading">Stops</h2>
           </div>
           <div id="milestones"></div>
         </section>

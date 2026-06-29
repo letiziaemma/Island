@@ -39,53 +39,114 @@ function renderLinks(links) {
 }
 
 function renderCountdown(trip) {
-  const container = document.getElementById('countdown');
-  if (!container) return;
-
   function update() {
-    const { days, hours, minutes, seconds } = daysUntil(trip.endDate);
-    const accents = ['magenta', 'cyan', 'lime'];
-    const units = [
-      { value: days, label: 'Days' },
-      { value: String(hours).padStart(2, '0'), label: 'Hours' },
-      { value: String(minutes).padStart(2, '0'), label: 'Min' },
+    const { days, hours, minutes } = daysUntil(trip.endDate);
+    const els = [
+      { id: 'stat-cd-days', value: days },
+      { id: 'stat-cd-hours', value: String(hours).padStart(2, '0') },
+      { id: 'stat-cd-min', value: String(minutes).padStart(2, '0') },
     ];
-    container.innerHTML = `
-      <div class="hero__stats" style="margin-top: 0; padding-bottom: 0; grid-template-columns: repeat(3, 1fr);">
-        ${units.map((u, i) => `
-          <div class="hero__stat">
-            <span class="hero__stat-value hero__stat-value--${accents[i]}">${u.value}</span>
-            <span class="hero__stat-label">${u.label}</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
+    els.forEach(({ id, value }) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    });
   }
 
   update();
   countdownInterval = setInterval(update, 1000);
 }
 
-function renderMilestones(milestones) {
+const STOPS_KEY = 'island-stops-v1';
+
+function loadStops(base) {
+  try {
+    const saved = localStorage.getItem(STOPS_KEY);
+    return saved ? JSON.parse(saved) : base.map(m => ({ ...m }));
+  } catch {
+    return base.map(m => ({ ...m }));
+  }
+}
+
+function saveStops(stops) {
+  localStorage.setItem(STOPS_KEY, JSON.stringify(stops));
+}
+
+function renderMilestones(base) {
   const container = document.getElementById('milestones');
   if (!container) return;
 
-  const items = milestones
-    .map(
-      (m, i) => `
+  let stops = loadStops(base);
+
+  function mapsUrl(title, customUrl) {
+    if (customUrl) return customUrl;
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(title + ' Iceland')}`;
+  }
+
+  function draw() {
+    const items = stops.map((m, i) => {
+      const when = m.date
+        ? `${m.date}${m.time ? ' · ' + m.time : ''}`
+        : (m.day ? `Day ${m.day}` : '');
+      const href = mapsUrl(m.title, m.url);
+      return `
       <div class="milestone milestone--${m.status}">
         <span class="milestone__number mono">${i + 1}</span>
         <div class="milestone__info">
-          <p class="milestone__title">${m.title}</p>
-          <p class="milestone__day">Day ${m.day}</p>
+          <p class="milestone__title">
+            <a class="stop-maps-link" href="${href}" target="_blank" rel="noopener noreferrer">${m.title}</a>
+          </p>
+          ${when ? `<p class="milestone__day">${when}</p>` : ''}
         </div>
         <span class="milestone__badge milestone__badge--${m.status}">${m.status}</span>
+        <button class="stop-delete" data-index="${i}" aria-label="Delete stop">✕</button>
       </div>
-    `
-    )
-    .join('');
+    `;
+    }).join('');
 
-  container.innerHTML = `<div class="milestones">${items}</div>`;
+    container.innerHTML = `
+      <div class="milestones">${items}</div>
+      <form class="stop-add-form" id="stop-add-form">
+        <input class="stop-add-input" type="text" placeholder="Stop name" id="stop-title" required />
+        <input class="stop-add-input stop-add-input--day" type="date" id="stop-date" required />
+        <input class="stop-add-input stop-add-input--day" type="time" id="stop-time" />
+        <input class="stop-add-input" type="url" placeholder="Maps URL (optional)" id="stop-url" />
+        <button class="stop-add-btn" type="submit">+ Add</button>
+      </form>
+    `;
+
+    ['#stop-date', '#stop-time'].forEach(id => {
+      const el = container.querySelector(id);
+      if (!el) return;
+      el.addEventListener('change', () => el.classList.toggle('has-value', !!el.value));
+    });
+
+    container.querySelectorAll('.stop-delete').forEach(btn => {
+      btn.addEventListener('click', () => {
+        stops.splice(Number(btn.dataset.index), 1);
+        saveStops(stops);
+        draw();
+      });
+    });
+
+    container.querySelector('#stop-add-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const title = container.querySelector('#stop-title').value.trim();
+      const date = container.querySelector('#stop-date').value;
+      const time = container.querySelector('#stop-time').value;
+      const url = container.querySelector('#stop-url').value.trim() || null;
+      if (!title || !date) return;
+      stops.push({ id: `u-${Date.now()}`, title, date, time: time || null, url, status: 'upcoming' });
+      stops.sort((a, b) => {
+        const aKey = `${a.date || '9999-99-99'} ${a.time || '99:99'}`;
+        const bKey = `${b.date || '9999-99-99'} ${b.time || '99:99'}`;
+        return aKey.localeCompare(bKey);
+      });
+      saveStops(stops);
+      draw();
+    });
+  }
+
+  draw();
 }
 
 function renderStatistics(stats, trip) {
@@ -93,14 +154,14 @@ function renderStatistics(stats, trip) {
   if (!container) return;
 
   const totalDays = daysBetween(trip.startDate, trip.endDate);
-  const accents = ['cyan', 'lime', 'magenta', 'cyan', 'lime', 'magenta'];
+  const accents = ['cyan', 'lime', 'magenta', 'magenta', 'cyan', 'lime'];
   const units = [
     { value: `${stats.daysElapsed}<span class="hero__stat-sep">/</span>${totalDays}`, label: 'Days' },
     { value: `${stats.distanceCovered}<span class="hero__stat-sep">/</span>${stats.totalDistance}`, label: 'km' },
-    { value: stats.waterfalls, label: 'Waterfalls' },
-    { value: stats.photosTaken, label: 'Photos' },
-    { value: stats.coffeesConsumed, label: 'Coffees' },
-    { value: stats.daysRemaining, label: 'Days left' },
+    { value: `${stats.stopsDone}<span class="hero__stat-sep">/</span>${stats.stopsTotal}`, label: 'Stops' },
+    { value: `<span id="stat-cd-days">--</span>`, label: 'Days' },
+    { value: `<span id="stat-cd-hours">--</span>`, label: 'Hours' },
+    { value: `<span id="stat-cd-min">--</span>`, label: 'Min' },
   ];
 
   container.innerHTML = `
