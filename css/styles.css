@@ -1076,15 +1076,11 @@ ul {
   margin-top: 0.15rem;
 }
 
-.accom__tonight-badge {
-  font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent-cyan);
-  border: 1px solid var(--accent-cyan);
-  border-radius: var(--radius-pill);
-  padding: 0.1rem 0.45rem;
+.accom--tonight {
+  border-left: 2px solid var(--tc, var(--accent-cyan));
+  padding-left: var(--space-md);
+  margin-left: -2px;
+  background: color-mix(in srgb, var(--tc, var(--accent-cyan)) 7%, transparent);
 }
 
 .accom__person-badge {
@@ -1371,6 +1367,19 @@ ul {
   pointer-events: none;
 }
 
+.page--journal .page-header::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 75%;
+  height: 140%;
+  background:
+    radial-gradient(ellipse at 75% 0%, rgba(34, 211, 238, 0.14) 0%, transparent 55%),
+    radial-gradient(ellipse at 95% 5%, rgba(34, 211, 238, 0.08) 0%, transparent 50%);
+  pointer-events: none;
+}
+
 .page-header__title {
   font-size: clamp(1.75rem, 4vw, 2.5rem);
   margin-bottom: var(--space-xs);
@@ -1509,6 +1518,108 @@ ul {
   text-align: center;
 }
 
+.reflection__input:disabled,
+.reflection__textarea:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.reflection__submit-btn {
+  width: 100%;
+  margin-top: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--uc);
+  color: var(--bg);
+  border: none;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.reflection__submit-btn:hover {
+  opacity: 0.85;
+}
+
+.reflection__submitted-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-md);
+  gap: var(--space-sm);
+}
+
+.reflection__submitted-label {
+  margin-top: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--uc);
+}
+
+.reflection__redo-btn {
+  flex-shrink: 0;
+  padding: var(--space-xs) var(--space-sm);
+  background: transparent;
+  color: var(--uc);
+  border: 1px solid var(--uc);
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.reflection__redo-btn:hover {
+  background: var(--uc);
+  color: var(--bg);
+}
+
+.reflection__user--done {
+  opacity: 0.5;
+}
+
+.reflection--thankyou {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-lg);
+  padding: var(--space-xl) var(--space-md);
+  text-align: center;
+}
+
+.reflection__thankyou-text {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.reflection__thankyou-text strong {
+  color: var(--uc);
+}
+
+.reflection__buonanotte-btn {
+  padding: var(--space-sm) var(--space-lg);
+  background: transparent;
+  color: var(--uc);
+  border: 1px solid var(--uc);
+  border-radius: var(--radius-pill);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.reflection__buonanotte-btn:hover {
+  background: var(--uc);
+  color: var(--bg);
+}
+
 /* --- Reflections in Journal ---------------------------------------------- */
 
 .refl-block {
@@ -1571,4 +1682,65 @@ ul {
   font-size: 0.9rem;
   color: var(--text-primary);
   white-space: pre-wrap;
+}
+
+/* ── Standalone reflections on journal page ─────────────────────── */
+
+.refl-standalone {
+  margin-bottom: var(--space-2xl);
+}
+
+.refl-standalone__day {
+  margin-bottom: var(--space-xl);
+}
+
+.refl-standalone__date {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-md);
+}
+
+.refl-standalone__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+}
+
+@media (max-width: 640px) {
+  .refl-standalone__grid { grid-template-columns: 1fr; }
+}
+
+.refl-standalone__empty {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+.refl-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.refl-card__header .refl-card__name {
+  margin-bottom: 0;
+}
+
+.refl-card__emoji {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.refl-card__timestamp {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  margin-bottom: var(--space-sm);
+  letter-spacing: 0.05em;
 }

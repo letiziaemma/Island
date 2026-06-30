@@ -513,11 +513,40 @@ function saveAllReflections(data) {
   localStorage.setItem('island-reflections', JSON.stringify(data));
 }
 
+function getSubmittedUsers(date) {
+  try {
+    const saved = localStorage.getItem('island-reflection-submitted');
+    return saved ? (JSON.parse(saved)[date] || []) : [];
+  } catch { return []; }
+}
+
+function markUserSubmitted(date, user) {
+  try {
+    const saved = localStorage.getItem('island-reflection-submitted');
+    const all = saved ? JSON.parse(saved) : {};
+    if (!all[date]) all[date] = [];
+    if (!all[date].includes(user)) all[date].push(user);
+    localStorage.setItem('island-reflection-submitted', JSON.stringify(all));
+  } catch {}
+}
+
+function unmarkUserSubmitted(date, user) {
+  try {
+    const saved = localStorage.getItem('island-reflection-submitted');
+    const all = saved ? JSON.parse(saved) : {};
+    if (!all[date]) return;
+    all[date] = all[date].filter(u => u !== user);
+    localStorage.setItem('island-reflection-submitted', JSON.stringify(all));
+  } catch {}
+}
+
 function renderReflection(today) {
   const container = document.getElementById('reflection');
   if (!container) return;
 
   let activeUser = REFLECTION_USERS[0];
+  let showThankYou = false;
+  let thankYouUser = '';
   const all = getAllReflections();
   if (!all[today.date]) all[today.date] = {};
 
@@ -526,49 +555,95 @@ function renderReflection(today) {
   }
 
   function draw() {
-    const d = getUserData(activeUser);
+    const todayVal = localDateStr(new Date());
+    const submitted = getSubmittedUsers(todayVal);
     const color = REFLECTION_USER_COLOR[activeUser];
+
+    if (showThankYou) {
+      const tyColor = REFLECTION_USER_COLOR[thankYouUser];
+      container.innerHTML = `
+        <div class="reflection reflection--thankyou" style="--uc:${tyColor}">
+          <p class="reflection__thankyou-text">Thank you <strong>${thankYouUser}</strong>, for sharing your memories. See you tomorrow.</p>
+          <button class="reflection__buonanotte-btn" type="button">Buona Notte, tvb.</button>
+        </div>`;
+      container.querySelector('.reflection__buonanotte-btn').addEventListener('click', () => {
+        markUserSubmitted(todayVal, thankYouUser);
+        showThankYou = false;
+        draw();
+      });
+      return;
+    }
 
     const userBtns = REFLECTION_USERS.map((u) => {
       const active = u === activeUser;
       const c = REFLECTION_USER_COLOR[u];
+      const done = submitted.includes(u);
       return `<button
-        class="reflection__user${active ? ' reflection__user--active' : ''}"
+        class="reflection__user${active ? ' reflection__user--active' : ''}${done ? ' reflection__user--done' : ''}"
         data-user="${u}"
         style="--uc:${c}"
-        type="button">${u}</button>`;
+        type="button">${u}${done ? ' ✓' : ''}</button>`;
     }).join('');
+
+    const isSubmitted = submitted.includes(activeUser);
+    const d = getUserData(activeUser);
 
     const fields = REFLECTION_FIELDS.map((f) => {
       const val = d[f.key] || '';
       const input = f.multi
-        ? `<textarea class="reflection__input reflection__textarea" data-field="${f.key}" placeholder="${f.placeholder}">${val}</textarea>`
-        : `<input class="reflection__input${f.key === 'emoji' ? ' reflection__input--emoji' : ''}" data-field="${f.key}" value="${val}" placeholder="${f.placeholder}">`;
+        ? `<textarea class="reflection__input reflection__textarea" data-field="${f.key}" placeholder="${f.placeholder}"${isSubmitted ? ' disabled' : ''}>${val}</textarea>`
+        : `<input class="reflection__input${f.key === 'emoji' ? ' reflection__input--emoji' : ''}" data-field="${f.key}" value="${val}" placeholder="${f.placeholder}"${isSubmitted ? ' disabled' : ''}>`;
       return `<div class="reflection__field">
         <span class="reflection__field-label">${f.label}</span>
         ${input}
       </div>`;
     }).join('');
 
+    const footer = isSubmitted
+      ? `<div class="reflection__submitted-row">
+           <p class="reflection__submitted-label">Memories immortalized ✓</p>
+           <button class="reflection__redo-btn" type="button">Redo</button>
+         </div>`
+      : `<button class="reflection__submit-btn" type="button">Immortalize memories</button>`;
+
     container.innerHTML = `
       <div class="reflection" style="--uc:${color}">
         <div class="reflection__users">${userBtns}</div>
         <div class="reflection__fields">${fields}</div>
+        ${footer}
       </div>`;
 
     container.querySelectorAll('.reflection__user').forEach((btn) => {
       btn.addEventListener('click', () => { activeUser = btn.dataset.user; draw(); });
     });
 
-    container.querySelectorAll('[data-field]').forEach((el) => {
-      el.addEventListener('input', () => {
+    if (!isSubmitted) {
+      container.querySelector('.reflection__submit-btn').addEventListener('click', () => {
         if (!all[today.date][activeUser]) {
           all[today.date][activeUser] = { moments: '', learnings: '', song: '', emoji: '' };
         }
-        all[today.date][activeUser][el.dataset.field] = el.value;
+        all[today.date][activeUser]._submittedAt = new Date().toISOString();
         saveAllReflections(all);
+        showThankYou = true;
+        thankYouUser = activeUser;
+        draw();
       });
-    });
+
+      container.querySelectorAll('[data-field]').forEach((el) => {
+        el.addEventListener('input', () => {
+          if (!all[today.date][activeUser]) {
+            all[today.date][activeUser] = { moments: '', learnings: '', song: '', emoji: '' };
+          }
+          all[today.date][activeUser][el.dataset.field] = el.value;
+          saveAllReflections(all);
+        });
+      });
+    } else {
+      container.querySelector('.reflection__redo-btn').addEventListener('click', () => {
+        unmarkUserSubmitted(todayVal, activeUser);
+        draw();
+      });
+    }
   }
 
   draw();

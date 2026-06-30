@@ -12,6 +12,94 @@ const REFLECTION_USER_COLOR = {
   Leonie: 'var(--accent-lime)',
   Letizia: 'var(--accent-magenta)',
 };
+const REFLECTION_USERS = ['Nella', 'Leonie', 'Letizia'];
+
+function getSubmittedReflections() {
+  let reflections = {};
+  try { reflections = JSON.parse(localStorage.getItem('island-reflections') || '{}'); } catch {}
+
+  const result = [];
+  for (const date of Object.keys(reflections).sort().reverse()) {
+    const dayData = reflections[date] || {};
+    const users = REFLECTION_USERS
+      .filter(u => dayData[u] && Object.values(dayData[u]).some(v => v && v.trim()))
+      .map(u => ({ user: u, data: dayData[u] }));
+    if (users.length) result.push({ date, users });
+  }
+  return result;
+}
+
+function formatDayLabel(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}.${mm}.${yyyy}`;
+}
+
+function formatTimestamp(isoString) {
+  if (!isoString) return null;
+  const d = new Date(isoString);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const HH = String(d.getHours()).padStart(2, '0');
+  const MM = String(d.getMinutes()).padStart(2, '0');
+  return `${dd}.${mm}.${yyyy} · ${HH}:${MM}`;
+}
+
+function renderStandaloneReflections() {
+  const container = document.getElementById('reflections-list');
+  if (!container) return;
+
+  const days = getSubmittedReflections();
+
+  if (!days.length) {
+    container.innerHTML = `
+      <div class="refl-standalone">
+        <h2 class="section-flat__title">Daily Reflections</h2>
+        <p class="refl-standalone__empty">No reflections yet — check back tonight.</p>
+      </div>`;
+    return;
+  }
+
+  const dayBlocks = days.map(({ date, users }) => {
+    const cards = users.map(({ user, data }) => {
+      const color = REFLECTION_USER_COLOR[user] || 'var(--accent-cyan)';
+      const emoji = data.emoji && data.emoji.trim() ? data.emoji.trim() : '';
+      const timestamp = formatTimestamp(data._submittedAt);
+      const items = Object.entries(REFLECTION_LABELS)
+        .filter(([key]) => key !== 'emoji' && data[key] && data[key].trim())
+        .map(([key, label]) => `
+          <div class="refl-item">
+            <span class="refl-item__label">${label}</span>
+            <span class="refl-item__value">${data[key]}</span>
+          </div>`)
+        .join('');
+      return `
+        <div class="refl-card" style="--uc:${color}">
+          <div class="refl-card__header">
+            <span class="refl-card__name">${user}</span>
+            ${emoji ? `<span class="refl-card__emoji">${emoji}</span>` : ''}
+          </div>
+          ${timestamp ? `<span class="refl-card__timestamp">${timestamp}</span>` : ''}
+          ${items}
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="refl-standalone__day">
+        <p class="refl-standalone__date">${formatDayLabel(date)}</p>
+        <div class="refl-standalone__grid">${cards}</div>
+      </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="refl-standalone">
+      <h2 class="section-flat__title">Daily Reflections</h2>
+      ${dayBlocks}
+    </div>`;
+}
 
 function buildReflectionBlock(date) {
   let all = {};
@@ -121,6 +209,11 @@ async function init() {
     if (status) status.innerHTML = '';
 
     renderJournal(data.journal);
+    renderStandaloneReflections();
+
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'island-reflections') renderStandaloneReflections();
+    });
 
     const countEl = document.getElementById('entry-count');
     if (countEl) {

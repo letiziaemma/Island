@@ -12,7 +12,7 @@
 
   <link rel="stylesheet" href="/css/styles.css">
 </head>
-<body>
+<body class="page--journal">
   <nav class="nav" aria-label="Main navigation">
     <div class="nav__inner">
       <a href="/" class="nav__brand">Iceland Trip</a>
@@ -28,13 +28,14 @@
     <div id="page-status" class="container" role="status"></div>
 
     <header class="page-header container">
-      <p class="label">Trip journal</p>
-      <h1 class="display page-header__title">What happened?</h1>
-      <p class="page-header__subtitle">
-        Daily entries in chronological order.
-        <span class="mono" id="entry-count"></span>
-      </p>
+      <p class="label" style="color: var(--accent-cyan);">Trip journal</p>
+      <h1 class="display page-header__title">¿Qué pasó?</h1>
+      <p class="page-header__subtitle">Our daily reflection. Holding our core moments.</p>
     </header>
+
+    <section class="container section--tight" aria-label="Daily reflections">
+      <div id="reflections-list"></div>
+    </section>
 
     <section class="container section--tight" aria-label="Journal entries">
       <div class="journal-list" id="journal-list"></div>
