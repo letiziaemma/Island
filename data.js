@@ -10,7 +10,7 @@ let cachedData = null;
 export async function fetchTripData() {
   if (cachedData) return cachedData;
 
-  const response = await fetch('/data/trip.json');
+  const response = await fetch('trip.json');
 
   if (!response.ok) {
     throw new Error(`Failed to load trip data (${response.status})`);
