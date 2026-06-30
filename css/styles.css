@@ -136,7 +136,7 @@ ul {
 }
 
 .grid-sidebar {
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: 1fr minmax(0, 340px);
 }
 
 @media (max-width: 900px) {
@@ -635,8 +635,8 @@ ul {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 1.75rem;
+  height: 1.75rem;
   border-radius: 50%;
   font-family: var(--font-mono);
   font-size: 0.75rem;
@@ -757,7 +757,8 @@ ul {
 }
 
 .stop-add-input--day {
-  flex: 0 0 120px;
+  flex: 0 1 120px;
+  min-width: 80px;
 }
 
 .stop-add-input:focus {
@@ -1162,8 +1163,8 @@ ul {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
   background: var(--divider);
   font-family: var(--font-mono);
@@ -1743,4 +1744,89 @@ ul {
   opacity: 0.6;
   margin-bottom: var(--space-sm);
   letter-spacing: 0.05em;
+}
+
+/* ── Minimum 44px touch target (iOS HIG) ───────────────────────── */
+.btn,
+.stop-add-btn,
+.stop-clear-btn,
+.accom__person-btn,
+.meal__tag,
+.reflection__user,
+.reflection__submit-btn,
+.reflection__redo-btn,
+.reflection__buonanotte-btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Typografie-Skalierung für Mobile (min. 16px) ───────────────── */
+/* Skalierungsfaktor 1.6× (16px ÷ 10px), damit 0.625rem = 16px.    */
+/* Alle rem-Werte (Schriften + Abstände) skalieren proportional.    */
+@media (max-width: 768px) {
+  html { font-size: 25.6px; }
+}
+
+/* ── Read-only Modus (Standard) ─────────────────────────────────── */
+
+body:not(.edit-mode) .stop-add-form,
+body:not(.edit-mode) .itinerary__delete,
+body:not(.edit-mode) .accom__person-btn,
+body:not(.edit-mode) .meal__tags,
+body:not(.edit-mode) .reflection__submit-btn,
+body:not(.edit-mode) .reflection__redo-btn,
+body:not(.edit-mode) .reflection__buonanotte-btn {
+  display: none !important;
+}
+
+body:not(.edit-mode) .meal__input,
+body:not(.edit-mode) .reflection__fields {
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ── Edit-Modus Indikator ───────────────────────────────────────── */
+
+.nav__brand {
+  position: relative;
+}
+
+body.edit-mode .nav__brand::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--accent-lime);
+  border-radius: 50%;
+  margin-left: 6px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* ── Toast Benachrichtigung ─────────────────────────────────────── */
+
+.edit-toast {
+  position: fixed;
+  bottom: var(--space-2xl);
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--surface-raised);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-pill);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+  z-index: 9999;
+  white-space: nowrap;
+}
+
+.edit-toast--show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
