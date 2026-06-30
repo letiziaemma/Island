@@ -1,21 +1,51 @@
 import { fetchTripData } from './data.js';
-import {
-  initNav,
-  showError,
-  showLoading,
-} from './app.js';
+import { initNav, showError, showLoading } from './app.js';
+import * as db from './db.js';
 
-const STATUS_LABELS = {
-  completed: 'Done',
-  current: 'Now',
-  upcoming: 'Next',
+// ── Constants ─────────────────────────────────────────────────────
+
+const STATUS_LABELS = { completed: 'Done', current: 'Now', upcoming: 'Next' };
+const MEAL_TAGS = ['Nella', 'Letizia', 'Leonie', 'Auswärts', 'Einkaufen'];
+const REFLECTION_USERS = ['Nella', 'Leonie', 'Letizia'];
+const REFLECTION_USER_COLOR = {
+  Nella:    'var(--accent-cyan)',
+  Leonie:   'var(--accent-lime)',
+  Letizia:  'var(--accent-magenta)',
 };
+const REFLECTION_FIELDS = [
+  { key: 'moments',   label: 'Memorable Moments',   placeholder: 'What stood out today?',  multi: true  },
+  { key: 'learnings', label: 'Learnings of the Day', placeholder: 'What did you learn?',    multi: true  },
+  { key: 'song',      label: 'Song of the Day',      placeholder: 'Your soundtrack today…', multi: false },
+  { key: 'emoji',     label: 'Emoji of the Day',     placeholder: '✨',                      multi: false },
+];
+
+// ── Module state (replaces localStorage) ─────────────────────────
+
+const state = {
+  reflections: {},
+  meals: { lunch: { dish: '', tags: [] }, dinner: { dish: '', tags: [] } },
+  stops: [],
+  hidden: [],
+};
+
+// Draw function refs — set by render* calls, invoked by real-time handlers
+let _activeUser = REFLECTION_USERS[0];
+let _drawItinerary = null;
+let _drawMeals = null;
+let _drawReflection = null;
+
+// ── Utilities ─────────────────────────────────────────────────────
 
 let tripLocations = [];
 const distanceCache = {};
 
 function localDateStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 
 const ACCOM_KEY = 'island-accommodation-v1';
@@ -47,9 +77,9 @@ async function getDrivingDistance(lat1, lng1, lat2, lng2) {
   return null;
 }
 
-function getCoordsForItem(item, customStops) {
+function getCoordsForItem(item) {
   if (item.custom) {
-    const s = customStops.find(c => c.id === item.id);
+    const s = state.stops.find(c => c.id === item.id);
     return s?.lat && s?.lng ? { lat: s.lat, lng: s.lng } : null;
   }
   const match = tripLocations.find(loc =>
@@ -59,17 +89,26 @@ function getCoordsForItem(item, customStops) {
   return match ? { lat: match.lat, lng: match.lng } : null;
 }
 
+function computeStatus(time) {
+  if (!time) return 'upcoming';
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const [h, m] = time.split(':').map(Number);
+  const stopMin = h * 60 + m;
+  if (nowMin >= stopMin + 60) return 'completed';
+  if (nowMin >= stopMin) return 'current';
+  return 'upcoming';
+}
+
+function getVisibleItinerary(itinerary) {
+  return itinerary.filter((_, i) => !state.hidden.includes(i));
+}
+
+// ── Hero ──────────────────────────────────────────────────────────
+
 async function updateHeroKm(baseItinerary) {
-  const deviceDate = localDateStr(new Date());
   const visibleItems = getVisibleItinerary(baseItinerary);
-
-  let customStops = [];
-  try {
-    const saved = localStorage.getItem('island-stops-v1');
-    if (saved) customStops = JSON.parse(saved).filter(s => s.date === deviceDate);
-  } catch {}
-
-  const extra = customStops.map(s => ({
+  const extra = state.stops.map(s => ({
     id: s.id, time: s.time || null, title: s.title, location: s.title, custom: true,
   }));
 
@@ -81,7 +120,7 @@ async function updateHeroKm(baseItinerary) {
   }).map(item => ({
     ...item,
     status: computeStatus(item.time),
-    coords: getCoordsForItem(item, customStops),
+    coords: getCoordsForItem(item),
   }));
 
   let totalKm = 0;
@@ -96,9 +135,7 @@ async function updateHeroKm(baseItinerary) {
     if (dist === null) continue;
     anyCoords = true;
     totalKm += dist;
-    if (all[i].status === 'completed' && all[i + 1].status === 'completed') {
-      doneKm += dist;
-    }
+    if (all[i].status === 'completed' && all[i + 1].status === 'completed') doneKm += dist;
   }
 
   const doneEl = document.getElementById('hero-km-done');
@@ -107,24 +144,14 @@ async function updateHeroKm(baseItinerary) {
     if (doneEl) doneEl.textContent = Math.round(doneKm);
     if (totalEl) totalEl.textContent = Math.round(totalKm);
   }
-  // leave "—/—" untouched if no coord data was found
 }
 
 function computeTodayStopCounts(baseItinerary) {
-  const deviceDate = localDateStr(new Date());
   const visibleItems = getVisibleItinerary(baseItinerary);
-
-  let customStops = [];
-  try {
-    const saved = localStorage.getItem('island-stops-v1');
-    if (saved) customStops = JSON.parse(saved).filter(s => s.date === deviceDate);
-  } catch {}
-
   const allStops = [
     ...visibleItems.map(i => ({ time: i.time })),
-    ...customStops.map(s => ({ time: s.time || null })),
+    ...state.stops.map(s => ({ time: s.time || null })),
   ];
-
   const total = allStops.length;
   const done = allStops.filter(s => computeStatus(s.time) === 'completed').length;
   return { done, total };
@@ -142,10 +169,9 @@ function renderHero(data) {
   const container = document.getElementById('hero');
   if (!container) return;
 
-  const { trip, today, statistics } = data;
+  const { trip, today } = data;
   const { header } = trip;
   const eyebrow = header.eyebrow.join(' · ');
-
   const { done, total } = computeTodayStopCounts(today.itinerary);
 
   const start = new Date(trip.startDate + 'T00:00:00');
@@ -163,16 +189,11 @@ function renderHero(data) {
     `${dayNumber}<span class="hero__stat-sep">/</span>${totalDays}`,
   ];
 
-  const stats = header.stats
-    .map(
-      (stat, i) => `
-      <div class="hero__stat">
-        <span class="hero__stat-value hero__stat-value--${stat.accent}">${dynamicValues[i]}</span>
-        <span class="hero__stat-label">${stat.label}</span>
-      </div>
-    `
-    )
-    .join('');
+  const stats = header.stats.map((stat, i) => `
+    <div class="hero__stat">
+      <span class="hero__stat-value hero__stat-value--${stat.accent}">${dynamicValues[i]}</span>
+      <span class="hero__stat-label">${stat.label}</span>
+    </div>`).join('');
 
   container.innerHTML = `
     <div class="hero__content">
@@ -180,78 +201,10 @@ function renderHero(data) {
       <h1 class="display hero__title">${header.title}</h1>
       <p class="hero__subtitle">${header.subtitle}</p>
       <div class="hero__stats">${stats}</div>
-    </div>
-  `;
+    </div>`;
 }
 
-function computeStatus(time) {
-  if (!time) return 'upcoming';
-  const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const [h, m] = time.split(':').map(Number);
-  const stopMin = h * 60 + m;
-  if (nowMin >= stopMin + 60) return 'completed';
-  if (nowMin >= stopMin) return 'current';
-  return 'upcoming';
-}
-
-function getVisibleItinerary(itinerary) {
-  const date = localDateStr(new Date());
-  const hidden = getHiddenIndices(date);
-  return itinerary.filter((_, i) => !hidden.includes(i));
-}
-
-function getTodayStops() {
-  try {
-    const saved = localStorage.getItem('island-stops-v1');
-    if (!saved) return [];
-    const today = localDateStr(new Date());
-    return JSON.parse(saved).filter(s => s.date === today);
-  } catch {
-    return [];
-  }
-}
-
-const HIDDEN_KEY = 'island-hidden-itinerary';
-
-function getHiddenIndices(date) {
-  try {
-    const saved = localStorage.getItem(HIDDEN_KEY);
-    return saved ? (JSON.parse(saved)[date] || []) : [];
-  } catch { return []; }
-}
-
-function setHiddenIndices(date, indices) {
-  try {
-    const saved = localStorage.getItem(HIDDEN_KEY);
-    const all = saved ? JSON.parse(saved) : {};
-    all[date] = indices;
-    localStorage.setItem(HIDDEN_KEY, JSON.stringify(all));
-  } catch {}
-}
-
-function saveStopToStorage(stop) {
-  try {
-    const saved = localStorage.getItem('island-stops-v1');
-    const stops = saved ? JSON.parse(saved) : [];
-    stops.push(stop);
-    stops.sort((a, b) => {
-      const ak = `${a.date || '9999-99-99'} ${a.time || '99:99'}`;
-      const bk = `${b.date || '9999-99-99'} ${b.time || '99:99'}`;
-      return ak.localeCompare(bk);
-    });
-    localStorage.setItem('island-stops-v1', JSON.stringify(stops));
-  } catch {}
-}
-
-function deleteStopFromStorage(id) {
-  try {
-    const saved = localStorage.getItem('island-stops-v1');
-    if (!saved) return;
-    const stops = JSON.parse(saved).filter(s => s.id !== id);
-    localStorage.setItem('island-stops-v1', JSON.stringify(stops));
-  } catch {}
-}
+// ── Itinerary ─────────────────────────────────────────────────────
 
 function renderItinerary(today, baseAccom) {
   const container = document.getElementById('itinerary');
@@ -259,13 +212,12 @@ function renderItinerary(today, baseAccom) {
 
   function draw() {
     const todayVal = localDateStr(new Date());
-    const hiddenIndices = getHiddenIndices(todayVal);
 
     const baseItems = today.itinerary
       .map((item, idx) => ({ ...item, _idx: idx, custom: false }))
-      .filter(item => !hiddenIndices.includes(item._idx));
+      .filter(item => !state.hidden.includes(item._idx));
 
-    const extra = getTodayStops().map(s => ({
+    const extra = state.stops.map(s => ({
       id: s.id,
       time: s.time || null,
       title: s.title,
@@ -286,12 +238,8 @@ function renderItinerary(today, baseAccom) {
     const endAccom   = accoms.find(a => a.checkInDate  === todayVal);
 
     const startItem = startAccom ? [{
-      displayTime: '--:--',
-      title: startAccom.name,
-      _status: 'completed',
-      isAccom: true,
+      displayTime: '--:--', title: startAccom.name, _status: 'completed', isAccom: true,
     }] : [];
-
     const endItem = endAccom ? [{
       displayTime: endAccom.checkInTime || '--:--',
       title: `Check-in — ${endAccom.name}`,
@@ -307,29 +255,27 @@ function renderItinerary(today, baseAccom) {
       const href = !item.isAccom && (item.url || (item.location
         ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`
         : null));
-      const deleteBtn = item.isAccom
-        ? ''
-        : item.custom
-          ? `<button class="itinerary__delete" data-id="${item.id}" aria-label="Delete stop">✕</button>`
-          : `<button class="itinerary__delete" data-idx="${item._idx}" aria-label="Delete stop">✕</button>`;
+      const deleteBtn = item.isAccom ? '' : item.custom
+        ? `<button class="itinerary__delete" data-id="${item.id}" aria-label="Delete stop">✕</button>`
+        : `<button class="itinerary__delete" data-idx="${item._idx}" aria-label="Delete stop">✕</button>`;
       return `
-      <li class="itinerary__item itinerary__item--${status}">
-        <span class="itinerary__time mono">${displayTime}</span>
-        <div class="itinerary__content">
-          <span class="itinerary__title">${item.title}</span>
-          ${href ? `<a class="itinerary__location" href="${href}" target="_blank" rel="noopener noreferrer">
-            ${item.location}
-            <svg class="itinerary__location-icon" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M1 9L9 1M9 1H3M9 1V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </a>` : ''}
-        </div>
-        <span class="itinerary__status itinerary__status--${status}">
-          ${STATUS_LABELS[status] || status}
-        </span>
-        <span class="itinerary__marker" aria-hidden="true"></span>
-        ${deleteBtn}
-      </li>`;
+        <li class="itinerary__item itinerary__item--${status}">
+          <span class="itinerary__time mono">${displayTime}</span>
+          <div class="itinerary__content">
+            <span class="itinerary__title">${item.title}</span>
+            ${href ? `<a class="itinerary__location" href="${href}" target="_blank" rel="noopener noreferrer">
+              ${item.location}
+              <svg class="itinerary__location-icon" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M1 9L9 1M9 1H3M9 1V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </a>` : ''}
+          </div>
+          <span class="itinerary__status itinerary__status--${status}">
+            ${STATUS_LABELS[status] || status}
+          </span>
+          <span class="itinerary__marker" aria-hidden="true"></span>
+          ${deleteBtn}
+        </li>`;
     }).join('');
 
     container.innerHTML = `
@@ -339,17 +285,18 @@ function renderItinerary(today, baseAccom) {
         <input class="stop-add-input stop-add-input--day" type="time" id="itin-time" />
         <input class="stop-add-input" type="url" placeholder="Maps URL (optional)" id="itin-url" />
         <button class="stop-add-btn" type="submit">+ Add</button>
-      </form>
-    `;
+      </form>`;
 
     container.querySelectorAll('.itinerary__delete').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         if (btn.dataset.id) {
-          deleteStopFromStorage(btn.dataset.id);
+          state.stops = state.stops.filter(s => s.id !== btn.dataset.id);
+          await db.deleteStop(btn.dataset.id);
         } else if (btn.dataset.idx !== undefined) {
-          const hidden = getHiddenIndices(todayVal);
-          if (!hidden.includes(Number(btn.dataset.idx))) {
-            setHiddenIndices(todayVal, [...hidden, Number(btn.dataset.idx)]);
+          const idx = Number(btn.dataset.idx);
+          if (!state.hidden.includes(idx)) {
+            state.hidden = [...state.hidden, idx];
+            await db.addHiddenIndex(todayVal, idx);
           }
         }
         draw();
@@ -359,27 +306,30 @@ function renderItinerary(today, baseAccom) {
     });
 
     const form = container.querySelector('#itinerary-add-form');
-    form.addEventListener('submit', e => {
+    form.addEventListener('submit', async e => {
       e.preventDefault();
       const title = form.querySelector('#itin-title').value.trim();
-      const date = todayVal;
-      const time = form.querySelector('#itin-time').value || null;
-      const url = form.querySelector('#itin-url').value.trim() || null;
+      const time  = form.querySelector('#itin-time').value || null;
+      const url   = form.querySelector('#itin-url').value.trim() || null;
       if (!title) return;
-      const stop = { id: `u-${Date.now()}`, title, date, time, url, status: 'upcoming' };
-      saveStopToStorage(stop);
+      const stop = { id: `u-${Date.now()}`, title, date: todayVal, time, url };
+      state.stops = [...state.stops, stop].sort((a, b) => {
+        const ak = `${a.date} ${a.time || '99:99'}`;
+        const bk = `${b.date} ${b.time || '99:99'}`;
+        return ak.localeCompare(bk);
+      });
+      await db.insertStop(stop);
       draw();
       updateHeroStopCount(today.itinerary);
       updateHeroKm(today.itinerary);
     });
   }
 
-  window.addEventListener('storage', (e) => {
-    if (e.key === ACCOM_KEY) draw();
-  });
-
+  _drawItinerary = draw;
   draw();
 }
+
+// ── Progress ──────────────────────────────────────────────────────
 
 function renderProgress(today) {
   const container = document.getElementById('progress');
@@ -417,147 +367,100 @@ function renderProgress(today) {
         <span class="progress__label">Total distance</span>
         <span class="progress__value mono">${progress.distanceTotal} km</span>
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
-const MEAL_TAGS = ['Nella', 'Letizia', 'Leonie', 'Auswärts', 'Einkaufen'];
-
-function getMeals(today) {
-  const stored = localStorage.getItem(`island-meals-${today.date}`);
-  if (stored) {
-    try { return JSON.parse(stored); } catch {}
-  }
-  return today.meals || {
-    lunch:  { dish: '', tags: [] },
-    dinner: { dish: '', tags: [] },
-  };
-}
-
-function saveMeals(date, meals) {
-  localStorage.setItem(`island-meals-${date}`, JSON.stringify(meals));
-}
+// ── Meals ─────────────────────────────────────────────────────────
 
 function renderMeals(today) {
   const container = document.getElementById('meals');
   if (!container) return;
 
-  const meals = getMeals(today);
+  const debouncedSave = debounce((mealType, dish, tags) => {
+    db.upsertMeal(today.date, mealType, dish, tags);
+  }, 600);
 
-  function mealBlock(key, label) {
-    const m = meals[key];
-    const tags = MEAL_TAGS.map((tag) => {
-      const active = (m.tags || []).includes(tag);
-      return `<button class="meal__tag meal__tag--${tag.toLowerCase().replace('ä', 'a').replace('ü', 'u')}${active ? ' meal__tag--active' : ''}" data-tag="${tag}" type="button">${tag}</button>`;
-    }).join('');
-    return `
-      <div class="meal" data-meal-key="${key}">
-        <span class="meal__label">${label}</span>
-        <div class="meal__fields">
-          <div class="meal__field">
-            <span class="meal__field-label">Dish</span>
-            <input class="meal__input" data-field="dish" value="${m.dish}" placeholder="What's on the menu?">
+  function draw() {
+    function mealBlock(key, label) {
+      const m = state.meals[key];
+      const tags = MEAL_TAGS.map((tag) => {
+        const active = (m.tags || []).includes(tag);
+        return `<button class="meal__tag meal__tag--${tag.toLowerCase().replace('ä', 'a').replace('ü', 'u')}${active ? ' meal__tag--active' : ''}" data-tag="${tag}" type="button">${tag}</button>`;
+      }).join('');
+      return `
+        <div class="meal" data-meal-key="${key}">
+          <span class="meal__label">${label}</span>
+          <div class="meal__fields">
+            <div class="meal__field">
+              <span class="meal__field-label">Dish</span>
+              <input class="meal__input" data-field="dish" value="${m.dish || ''}" placeholder="What's on the menu?">
+            </div>
+            <div class="meal__tags">${tags}</div>
           </div>
-          <div class="meal__tags">${tags}</div>
-        </div>
-      </div>
-    `;
-  }
+        </div>`;
+    }
 
-  container.innerHTML = `
-    <div class="meals">
-      ${mealBlock('lunch', 'Lunch')}
-      <div class="meals__divider"></div>
-      ${mealBlock('dinner', 'Dinner')}
-    </div>
-  `;
+    container.innerHTML = `
+      <div class="meals">
+        ${mealBlock('lunch', 'Lunch')}
+        <div class="meals__divider"></div>
+        ${mealBlock('dinner', 'Dinner')}
+      </div>`;
 
-  container.querySelectorAll('.meal').forEach((mealEl) => {
-    const key = mealEl.dataset.mealKey;
+    container.querySelectorAll('.meal').forEach((mealEl) => {
+      const key = mealEl.dataset.mealKey;
 
-    mealEl.querySelector('[data-field="dish"]').addEventListener('input', (e) => {
-      meals[key].dish = e.target.value;
-      saveMeals(today.date, meals);
-    });
+      mealEl.querySelector('[data-field="dish"]').addEventListener('input', (e) => {
+        state.meals[key].dish = e.target.value;
+        debouncedSave(key, state.meals[key].dish, state.meals[key].tags);
+      });
 
-    mealEl.querySelectorAll('.meal__tag').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const tag = btn.dataset.tag;
-        const tags = meals[key].tags || [];
-        meals[key].tags = tags.includes(tag)
-          ? tags.filter((t) => t !== tag)
-          : [...tags, tag];
-        saveMeals(today.date, meals);
-        btn.classList.toggle('meal__tag--active');
+      mealEl.querySelectorAll('.meal__tag').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const tag = btn.dataset.tag;
+          const tags = state.meals[key].tags || [];
+          state.meals[key].tags = tags.includes(tag)
+            ? tags.filter(t => t !== tag)
+            : [...tags, tag];
+          db.upsertMeal(today.date, key, state.meals[key].dish, state.meals[key].tags);
+          btn.classList.toggle('meal__tag--active');
+        });
       });
     });
-  });
+  }
+
+  _drawMeals = draw;
+  draw();
 }
 
-
-
-const REFLECTION_USERS = ['Nella', 'Leonie', 'Letizia'];
-const REFLECTION_USER_COLOR = { Nella: 'var(--accent-cyan)', Leonie: 'var(--accent-lime)', Letizia: 'var(--accent-magenta)' };
-const REFLECTION_FIELDS = [
-  { key: 'moments',  label: 'Memorable Moments',  placeholder: 'What stood out today?',    multi: true  },
-  { key: 'learnings',label: 'Learnings of the Day',placeholder: 'What did you learn?',       multi: true  },
-  { key: 'song',     label: 'Song of the Day',     placeholder: 'Your soundtrack today…',    multi: false },
-  { key: 'emoji',    label: 'Emoji of the Day',    placeholder: '✨',                         multi: false },
-];
-
-function getAllReflections() {
-  try { return JSON.parse(localStorage.getItem('island-reflections') || '{}'); } catch { return {}; }
-}
-
-function saveAllReflections(data) {
-  localStorage.setItem('island-reflections', JSON.stringify(data));
-}
-
-function getSubmittedUsers(date) {
-  try {
-    const saved = localStorage.getItem('island-reflection-submitted');
-    return saved ? (JSON.parse(saved)[date] || []) : [];
-  } catch { return []; }
-}
-
-function markUserSubmitted(date, user) {
-  try {
-    const saved = localStorage.getItem('island-reflection-submitted');
-    const all = saved ? JSON.parse(saved) : {};
-    if (!all[date]) all[date] = [];
-    if (!all[date].includes(user)) all[date].push(user);
-    localStorage.setItem('island-reflection-submitted', JSON.stringify(all));
-  } catch {}
-}
-
-function unmarkUserSubmitted(date, user) {
-  try {
-    const saved = localStorage.getItem('island-reflection-submitted');
-    const all = saved ? JSON.parse(saved) : {};
-    if (!all[date]) return;
-    all[date] = all[date].filter(u => u !== user);
-    localStorage.setItem('island-reflection-submitted', JSON.stringify(all));
-  } catch {}
-}
+// ── Reflection ────────────────────────────────────────────────────
 
 function renderReflection(today) {
   const container = document.getElementById('reflection');
   if (!container) return;
 
-  let activeUser = REFLECTION_USERS[0];
+  _activeUser = REFLECTION_USERS[0];
   let showThankYou = false;
   let thankYouUser = '';
-  const all = getAllReflections();
-  if (!all[today.date]) all[today.date] = {};
+
+  if (!state.reflections[today.date]) state.reflections[today.date] = {};
+
+  const debouncedSave = debounce((user, fields) => {
+    db.upsertReflection(today.date, user, fields);
+  }, 600);
 
   function getUserData(user) {
-    return all[today.date][user] || { moments: '', learnings: '', song: '', emoji: '' };
+    return state.reflections[today.date][user] || { moments: '', learnings: '', song: '', emoji: '' };
+  }
+
+  function getSubmittedUsers() {
+    const dayData = state.reflections[today.date] || {};
+    return REFLECTION_USERS.filter(u => dayData[u]?._isSubmitted);
   }
 
   function draw() {
-    const todayVal = localDateStr(new Date());
-    const submitted = getSubmittedUsers(todayVal);
-    const color = REFLECTION_USER_COLOR[activeUser];
+    const submitted = getSubmittedUsers();
+    const color = REFLECTION_USER_COLOR[_activeUser];
 
     if (showThankYou) {
       const tyColor = REFLECTION_USER_COLOR[thankYouUser];
@@ -566,8 +469,12 @@ function renderReflection(today) {
           <p class="reflection__thankyou-text">Thank you <strong>${thankYouUser}</strong>, for sharing your memories. See you tomorrow.</p>
           <button class="reflection__buonanotte-btn" type="button">Buona Notte, tvb.</button>
         </div>`;
-      container.querySelector('.reflection__buonanotte-btn').addEventListener('click', () => {
-        markUserSubmitted(todayVal, thankYouUser);
+      container.querySelector('.reflection__buonanotte-btn').addEventListener('click', async () => {
+        if (!state.reflections[today.date][thankYouUser]) {
+          state.reflections[today.date][thankYouUser] = { moments: '', learnings: '', song: '', emoji: '' };
+        }
+        state.reflections[today.date][thankYouUser]._isSubmitted = true;
+        await db.upsertReflection(today.date, thankYouUser, state.reflections[today.date][thankYouUser]);
         showThankYou = false;
         draw();
       });
@@ -575,7 +482,7 @@ function renderReflection(today) {
     }
 
     const userBtns = REFLECTION_USERS.map((u) => {
-      const active = u === activeUser;
+      const active = u === _activeUser;
       const c = REFLECTION_USER_COLOR[u];
       const done = submitted.includes(u);
       return `<button
@@ -585,8 +492,8 @@ function renderReflection(today) {
         type="button">${u}${done ? ' ✓' : ''}</button>`;
     }).join('');
 
-    const isSubmitted = submitted.includes(activeUser);
-    const d = getUserData(activeUser);
+    const isSubmitted = submitted.includes(_activeUser);
+    const d = getUserData(_activeUser);
 
     const fields = REFLECTION_FIELDS.map((f) => {
       const val = d[f.key] || '';
@@ -614,40 +521,99 @@ function renderReflection(today) {
       </div>`;
 
     container.querySelectorAll('.reflection__user').forEach((btn) => {
-      btn.addEventListener('click', () => { activeUser = btn.dataset.user; draw(); });
+      btn.addEventListener('click', () => { _activeUser = btn.dataset.user; draw(); });
     });
 
     if (!isSubmitted) {
       container.querySelector('.reflection__submit-btn').addEventListener('click', () => {
-        if (!all[today.date][activeUser]) {
-          all[today.date][activeUser] = { moments: '', learnings: '', song: '', emoji: '' };
+        if (!state.reflections[today.date][_activeUser]) {
+          state.reflections[today.date][_activeUser] = { moments: '', learnings: '', song: '', emoji: '' };
         }
-        all[today.date][activeUser]._submittedAt = new Date().toISOString();
-        saveAllReflections(all);
+        state.reflections[today.date][_activeUser]._submittedAt = new Date().toISOString();
+        db.upsertReflection(today.date, _activeUser, state.reflections[today.date][_activeUser]);
         showThankYou = true;
-        thankYouUser = activeUser;
+        thankYouUser = _activeUser;
         draw();
       });
 
       container.querySelectorAll('[data-field]').forEach((el) => {
         el.addEventListener('input', () => {
-          if (!all[today.date][activeUser]) {
-            all[today.date][activeUser] = { moments: '', learnings: '', song: '', emoji: '' };
+          if (!state.reflections[today.date][_activeUser]) {
+            state.reflections[today.date][_activeUser] = { moments: '', learnings: '', song: '', emoji: '' };
           }
-          all[today.date][activeUser][el.dataset.field] = el.value;
-          saveAllReflections(all);
+          state.reflections[today.date][_activeUser][el.dataset.field] = el.value;
+          debouncedSave(_activeUser, state.reflections[today.date][_activeUser]);
         });
       });
     } else {
-      container.querySelector('.reflection__redo-btn').addEventListener('click', () => {
-        unmarkUserSubmitted(todayVal, activeUser);
+      container.querySelector('.reflection__redo-btn').addEventListener('click', async () => {
+        if (state.reflections[today.date][_activeUser]) {
+          state.reflections[today.date][_activeUser]._isSubmitted = false;
+        }
+        await db.upsertReflection(today.date, _activeUser, state.reflections[today.date][_activeUser] || {});
         draw();
       });
     }
   }
 
+  _drawReflection = draw;
   draw();
 }
+
+// ── Real-time subscriptions ───────────────────────────────────────
+
+function initRealtime(todayStr, todayData) {
+  const todayItinerary = todayData.itinerary;
+
+  db.supabase.channel('today-rt')
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'reflections' },
+      (payload) => {
+        const { eventType, new: n, old: o } = payload;
+        if (eventType === 'DELETE') {
+          if (state.reflections[o.date]) delete state.reflections[o.date][o.user];
+        } else {
+          if (!state.reflections[n.date]) state.reflections[n.date] = {};
+          // Preserve live keystrokes — don't overwrite current user's in-progress entry
+          if (n.user !== _activeUser || n.date !== todayData.date) {
+            state.reflections[n.date][n.user] = {
+              moments:      n.moments,
+              learnings:    n.learnings,
+              song:         n.song,
+              emoji:        n.emoji,
+              _submittedAt: n.submitted_at,
+              _isSubmitted: n.is_submitted,
+            };
+          }
+        }
+        if (_drawReflection) _drawReflection();
+      })
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'meals', filter: `date=eq.${todayData.date}` },
+      async () => {
+        state.meals = await db.getMeals(todayData.date);
+        if (_drawMeals) _drawMeals();
+      })
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'stops', filter: `date=eq.${todayStr}` },
+      async () => {
+        state.stops = await db.getStops(todayStr);
+        if (_drawItinerary) _drawItinerary();
+        updateHeroStopCount(todayItinerary);
+        updateHeroKm(todayItinerary);
+      })
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'hidden_stops', filter: `date=eq.${todayStr}` },
+      async () => {
+        state.hidden = await db.getHiddenIndices(todayStr);
+        if (_drawItinerary) _drawItinerary();
+        updateHeroStopCount(todayItinerary);
+        updateHeroKm(todayItinerary);
+      })
+    .subscribe();
+}
+
+// ── Init ──────────────────────────────────────────────────────────
 
 async function init() {
   initNav('today');
@@ -660,12 +626,27 @@ async function init() {
     if (status) status.innerHTML = '';
 
     tripLocations = data.locations || [];
+    const todayStr = localDateStr(new Date());
+
+    const [reflections, meals, stops, hidden] = await Promise.all([
+      db.getAllReflections(),
+      db.getMeals(data.today.date),
+      db.getStops(todayStr),
+      db.getHiddenIndices(todayStr),
+    ]);
+
+    state.reflections = reflections;
+    state.meals       = meals;
+    state.stops       = stops;
+    state.hidden      = hidden;
+
     renderHero(data);
     renderItinerary(data.today, data.accommodation || []);
     renderProgress(data.today);
     renderMeals(data.today);
     renderReflection(data.today);
     updateHeroKm(data.today.itinerary);
+    initRealtime(todayStr, data.today);
   } catch (err) {
     if (status) showError(status, err.message);
   }

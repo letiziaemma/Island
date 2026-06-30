@@ -1,5 +1,6 @@
 import { fetchTripData } from './data.js';
 import { initNav, formatDate, showError, showLoading } from './app.js';
+import * as db from './db.js';
 
 const REFLECTION_LABELS = {
   moments:   'Memorable Moments',
@@ -8,21 +9,22 @@ const REFLECTION_LABELS = {
   emoji:     'Emoji of the Day',
 };
 const REFLECTION_USER_COLOR = {
-  Nella: 'var(--accent-cyan)',
-  Leonie: 'var(--accent-lime)',
+  Nella:   'var(--accent-cyan)',
+  Leonie:  'var(--accent-lime)',
   Letizia: 'var(--accent-magenta)',
 };
 const REFLECTION_USERS = ['Nella', 'Leonie', 'Letizia'];
+const CONTENT_FIELDS = ['moments', 'learnings', 'song', 'emoji'];
 
-function getSubmittedReflections() {
-  let reflections = {};
-  try { reflections = JSON.parse(localStorage.getItem('island-reflections') || '{}'); } catch {}
+let allReflectionData = {};
 
+async function getSubmittedReflections() {
+  const reflections = await db.getAllReflections();
   const result = [];
   for (const date of Object.keys(reflections).sort().reverse()) {
     const dayData = reflections[date] || {};
     const users = REFLECTION_USERS
-      .filter(u => dayData[u] && Object.values(dayData[u]).some(v => v && v.trim()))
+      .filter(u => dayData[u] && CONTENT_FIELDS.some(f => dayData[u][f] && String(dayData[u][f]).trim()))
       .map(u => ({ user: u, data: dayData[u] }));
     if (users.length) result.push({ date, users });
   }
@@ -48,11 +50,11 @@ function formatTimestamp(isoString) {
   return `${dd}.${mm}.${yyyy} · ${HH}:${MM}`;
 }
 
-function renderStandaloneReflections() {
+async function renderStandaloneReflections() {
   const container = document.getElementById('reflections-list');
   if (!container) return;
 
-  const days = getSubmittedReflections();
+  const days = await getSubmittedReflections();
 
   if (!days.length) {
     container.innerHTML = `
@@ -102,13 +104,11 @@ function renderStandaloneReflections() {
 }
 
 function buildReflectionBlock(date) {
-  let all = {};
-  try { all = JSON.parse(localStorage.getItem('island-reflections') || '{}'); } catch {}
-  const dayData = all[date];
+  const dayData = allReflectionData[date];
   if (!dayData) return '';
 
   const entries = Object.entries(dayData).filter(([, v]) =>
-    Object.values(v).some((s) => s && s.trim())
+    CONTENT_FIELDS.some(f => v[f] && String(v[f]).trim())
   );
   if (!entries.length) return '';
 
@@ -205,20 +205,25 @@ async function init() {
   if (status) showLoading(status);
 
   try {
-    const data = await fetchTripData();
+    const [data, reflections] = await Promise.all([
+      fetchTripData(),
+      db.getAllReflections(),
+    ]);
     if (status) status.innerHTML = '';
 
+    allReflectionData = reflections;
     renderJournal(data.journal);
     renderStandaloneReflections();
 
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'island-reflections') renderStandaloneReflections();
-    });
+    db.supabase.channel('journal-rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reflections' }, async () => {
+        allReflectionData = await db.getAllReflections();
+        renderStandaloneReflections();
+      })
+      .subscribe();
 
     const countEl = document.getElementById('entry-count');
-    if (countEl) {
-      countEl.textContent = `${data.journal.length} entries`;
-    }
+    if (countEl) countEl.textContent = `${data.journal.length} entries`;
   } catch (err) {
     if (status) showError(status, err.message);
   }

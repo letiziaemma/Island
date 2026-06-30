@@ -1478,31 +1478,31 @@ ul {
 
 .reflection__field-label {
   font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
+  font-weight: 500;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--uc);
-  opacity: 0.8;
+  color: var(--text-secondary);
+  opacity: 0.55;
 }
 
 .reflection__input {
-  background: color-mix(in srgb, var(--uc) 5%, transparent);
-  border: 1px solid color-mix(in srgb, var(--uc) 25%, transparent);
-  border-radius: var(--radius-md);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--divider);
+  border-radius: 0;
   color: var(--text-primary);
   font-family: var(--font-body);
   font-size: 0.9375rem;
-  padding: 0.6rem 0.75rem;
+  padding: 0.3rem 0;
   width: 100%;
   outline: none;
   resize: none;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s;
   box-sizing: border-box;
 }
 
 .reflection__input:focus {
   border-color: var(--uc);
-  background: color-mix(in srgb, var(--uc) 8%, transparent);
 }
 
 .reflection__input::placeholder {
