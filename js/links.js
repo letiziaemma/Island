@@ -133,16 +133,16 @@ function renderAccommodation(base) {
       const mapsHref = a.url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.name + ' Iceland')}`;
       const [cy, cm, cd] = a.checkInDate.split('-');
       const checkInStr = `${cd}.${cm}.${cy} · ${a.checkInTime || '--:--'}`;
-      const personColor = a.person ? ACCOM_PERSON_COLOR[a.person] : null;
+      const personColor = a.person ? ACCOM_PERSON_COLOR[a.person] : 'var(--accent-cyan)';
       const personBadge = a.person
         ? `<span class="accom__person-badge" style="color:${personColor};border-color:${personColor}">${a.person}</span>`
         : '';
+      const tonightStyle = tonight ? ` style="--tc:${personColor}"` : '';
       return `
-        <div class="accom${tonight ? ' accom--tonight' : ''}">
+        <div class="accom${tonight ? ' accom--tonight' : ''}"${tonightStyle}>
           <div class="accom__info">
             <p class="accom__name">
               <a class="stop-maps-link" href="${mapsHref}" target="_blank" rel="noopener noreferrer">${a.name}</a>
-              ${tonight ? '<span class="accom__tonight-badge">Tonight</span>' : ''}
             </p>
             <p class="accom__meta">Check-in ${checkInStr}</p>
           </div>
