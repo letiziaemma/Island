@@ -3,8 +3,10 @@
  */
 
 // ── Edit mode ─────────────────────────────────────────────────────
-// 5 taps on the nav brand within 2 s toggles editing.
-// State lives in JS memory only — resets on page reload.
+// 3 taps on the nav brand within 2 s toggles editing.
+// Persisted in sessionStorage — survives page navigation within the tab.
+
+const EDIT_KEY = 'island-edit';
 
 function showEditToast(message) {
   let toast = document.getElementById('edit-toast');
@@ -20,7 +22,76 @@ function showEditToast(message) {
   toast._t = setTimeout(() => toast.classList.remove('edit-toast--show'), 2500);
 }
 
+function showAccessModal() {
+  let modal = document.getElementById('access-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'access-modal';
+    modal.className = 'access-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.innerHTML = `
+      <div class="access-modal__box">
+        <p class="access-modal__msg">You are not eligible to make changes here.</p>
+        <p class="access-modal__hint">Please contact the administrator, <strong>Letizia</strong>.</p>
+        <button class="access-modal__close" type="button">OK</button>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.querySelector('.access-modal__close').addEventListener('click', () => {
+      modal.classList.remove('access-modal--visible');
+    });
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.classList.remove('access-modal--visible');
+    });
+  }
+  modal.classList.add('access-modal--visible');
+}
+
+const PROTECTED = [
+  '.stop-add-btn',
+  '.stop-add-input',
+  '.itinerary__delete',
+  '.accom__person-btn',
+  '.meal__tag',
+  '.meal__input',
+  '.reflection__submit-btn',
+  '.reflection__redo-btn',
+  '.reflection__buonanotte-btn',
+  '.reflection__input',
+  '.reflection__textarea',
+].join(',');
+
+function initReadOnlyGuard() {
+  document.body.addEventListener('click', (e) => {
+    if (document.body.classList.contains('edit-mode')) return;
+    if (e.target.closest(PROTECTED)) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      showAccessModal();
+    }
+  }, true);
+
+  document.body.addEventListener('focusin', (e) => {
+    if (document.body.classList.contains('edit-mode')) return;
+    if (e.target.closest('.meal__input, .reflection__input, .reflection__textarea')) {
+      e.target.blur();
+      showAccessModal();
+    }
+  });
+
+  document.body.addEventListener('submit', (e) => {
+    if (document.body.classList.contains('edit-mode')) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    showAccessModal();
+  }, true);
+}
+
 function initEditMode() {
+  if (sessionStorage.getItem(EDIT_KEY) === '1') {
+    document.body.classList.add('edit-mode');
+  }
+
   const brand = document.querySelector('.nav__brand');
   if (!brand) return;
 
@@ -37,9 +108,12 @@ function initEditMode() {
       count = 0;
       clearTimeout(timer);
       const on = document.body.classList.toggle('edit-mode');
+      sessionStorage.setItem(EDIT_KEY, on ? '1' : '0');
       showEditToast(on ? 'Bearbeiten aktiviert ✓' : 'Bearbeiten deaktiviert');
     }
   });
+
+  initReadOnlyGuard();
 }
 
 export function initNav(activePage) {
