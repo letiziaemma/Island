@@ -26,7 +26,7 @@ export async function getAllReflections() {
 }
 
 export async function upsertReflection(date, user, fields) {
-  const { error } = await supabase.from('reflections').upsert({
+  const payload = {
     date,
     user,
     moments:      fields.moments    ?? '',
@@ -35,8 +35,31 @@ export async function upsertReflection(date, user, fields) {
     emoji:        fields.emoji      ?? '',
     submitted_at: fields._submittedAt ?? null,
     is_submitted: fields._isSubmitted ?? false,
-  }, { onConflict: 'date,user' });
-  if (error) console.error('upsertReflection:', error);
+  };
+
+  // Check if a row already exists for this date+user combination.
+  const { data: existing, error: checkError } = await supabase
+    .from('reflections')
+    .select('date')
+    .eq('date', date)
+    .eq('user', user)
+    .maybeSingle();
+
+  if (checkError) {
+    console.error('upsertReflection check:', checkError);
+    return false;
+  }
+
+  const { error } = existing
+    ? await supabase.from('reflections').update(payload).eq('date', date).eq('user', user)
+    : await supabase.from('reflections').insert(payload);
+
+  if (error) {
+    console.error('upsertReflection save:', error);
+    return false;
+  }
+
+  return true;
 }
 
 // ── Meals ────────────────────────────────────────────────────────
@@ -76,6 +99,67 @@ export async function insertStop(stop) {
 export async function deleteStop(id) {
   const { error } = await supabase.from('stops').delete().eq('id', id);
   if (error) console.error('deleteStop:', error);
+}
+
+// ── Accommodation ────────────────────────────────────────────────
+
+export async function getAccommodation() {
+  const { data, error } = await supabase.from('accommodation').select('*').order('check_in_date');
+  if (error) { console.error('getAccommodation:', error); return []; }
+  return data.map(r => ({
+    id:          r.id,
+    name:        r.name,
+    person:      r.person || '',
+    checkInDate: r.check_in_date,
+    checkInTime: r.check_in_time || null,
+    checkOutDate:r.check_out_date,
+    url:         r.url || null,
+  }));
+}
+
+export async function upsertAccommodation(accom) {
+  const { error } = await supabase.from('accommodation').upsert({
+    id:            accom.id,
+    name:          accom.name,
+    person:        accom.person || '',
+    check_in_date: accom.checkInDate,
+    check_in_time: accom.checkInTime || null,
+    check_out_date:accom.checkOutDate,
+    url:           accom.url || null,
+  }, { onConflict: 'id' });
+  if (error) console.error('upsertAccommodation:', error);
+}
+
+export async function deleteAccommodation(id) {
+  const { error } = await supabase.from('accommodation').delete().eq('id', id);
+  if (error) console.error('deleteAccommodation:', error);
+}
+
+// ── Milestones ────────────────────────────────────────────────────
+
+export async function getMilestones() {
+  const { data, error } = await supabase.from('milestones').select('*');
+  if (error) { console.error('getMilestones:', error); return []; }
+  return data.map(r => ({
+    id:    r.id,
+    title: r.title,
+    date:  r.date  || null,
+    time:  r.time  || null,
+    url:   r.url   || null,
+  }));
+}
+
+export async function insertMilestone(m) {
+  const { error } = await supabase.from('milestones').insert({
+    id: m.id, title: m.title,
+    date: m.date || null, time: m.time || null, url: m.url || null,
+  });
+  if (error) console.error('insertMilestone:', error);
+}
+
+export async function deleteMilestone(id) {
+  const { error } = await supabase.from('milestones').delete().eq('id', id);
+  if (error) console.error('deleteMilestone:', error);
 }
 
 // ── Hidden stops ─────────────────────────────────────────────────

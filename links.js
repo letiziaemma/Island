@@ -2,12 +2,18 @@ import { fetchTripData } from './data.js';
 import {
   initNav,
   daysUntil,
-  daysBetween,
   showError,
   showLoading,
 } from './app.js';
+import * as db from './db.js';
 
 let countdownInterval = null;
+
+// ── Module state ──────────────────────────────────────────────────
+let storedMilestones = [];
+let storedAccoms = [];
+
+// ── Helpers ───────────────────────────────────────────────────────
 
 function parseCoordsFromUrl(url) {
   if (!url) return null;
@@ -42,9 +48,9 @@ async function getDrivingDistance(lat1, lng1, lat2, lng2) {
   return null;
 }
 
-async function updateKmStat(stops) {
-  const withCoords = stops.map(s => ({
-    status: s.status,
+async function updateKmStat() {
+  const withCoords = storedMilestones.map(s => ({
+    status: computeStopStatus(s),
     coords: parseCoordsFromUrl(s.url),
   }));
 
@@ -76,7 +82,6 @@ async function updateKmStat(stops) {
   }
 }
 
-
 function renderCountdown(trip) {
   function update() {
     const { days, hours, minutes } = daysUntil(trip.endDate);
@@ -95,31 +100,17 @@ function renderCountdown(trip) {
   countdownInterval = setInterval(update, 1000);
 }
 
-const STOPS_KEY = 'island-stops-v1';
-
-const ACCOM_KEY = 'island-accommodation-v1';
-
-function loadAccom(base) {
-  try {
-    const saved = localStorage.getItem(ACCOM_KEY);
-    return saved ? JSON.parse(saved) : base.map(a => ({ ...a }));
-  } catch {
-    return base.map(a => ({ ...a }));
-  }
-}
-
-function saveAccom(accoms) {
-  localStorage.setItem(ACCOM_KEY, JSON.stringify(accoms));
-}
-
 const ACCOM_PERSONS = ['Leonie', 'Nella', 'Letizia'];
 const ACCOM_PERSON_COLOR = { Leonie: 'var(--accent-lime)', Nella: 'var(--accent-cyan)', Letizia: 'var(--accent-magenta)' };
 
-function renderAccommodation(base) {
+function localDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function renderAccommodation() {
   const container = document.getElementById('accommodation');
   if (!container) return;
 
-  let accoms = loadAccom(base);
   let formPerson = '';
 
   function isTonight(a) {
@@ -128,7 +119,7 @@ function renderAccommodation(base) {
   }
 
   function draw() {
-    const items = accoms.map((a, i) => {
+    const items = storedAccoms.map((a, i) => {
       const tonight = isTonight(a);
       const mapsHref = a.url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.name + ' Iceland')}`;
       const [cy, cm, cd] = a.checkInDate.split('-');
@@ -185,14 +176,16 @@ function renderAccommodation(base) {
     });
 
     container.querySelectorAll('.stop-delete').forEach(btn => {
-      btn.addEventListener('click', () => {
-        accoms.splice(Number(btn.dataset.index), 1);
-        saveAccom(accoms);
+      btn.addEventListener('click', async () => {
+        const idx = Number(btn.dataset.index);
+        const id = storedAccoms[idx]?.id;
+        storedAccoms.splice(idx, 1);
+        if (id) await db.deleteAccommodation(id);
         draw();
       });
     });
 
-    container.querySelector('#accom-add-form').addEventListener('submit', e => {
+    container.querySelector('#accom-add-form').addEventListener('submit', async e => {
       e.preventDefault();
       const name = container.querySelector('#accom-name').value.trim();
       const checkInDate = container.querySelector('#accom-checkin').value;
@@ -200,9 +193,10 @@ function renderAccommodation(base) {
       const checkOutDate = container.querySelector('#accom-checkout').value;
       const url = container.querySelector('#accom-url').value.trim() || null;
       if (!name || !checkInDate || !checkOutDate) return;
-      accoms.push({ id: `acc-${Date.now()}`, name, person: formPerson, checkInDate, checkInTime, checkOutDate, url });
-      accoms.sort((a, b) => a.checkInDate.localeCompare(b.checkInDate));
-      saveAccom(accoms);
+      const accom = { id: `acc-${Date.now()}`, name, person: formPerson, checkInDate, checkInTime, checkOutDate, url };
+      storedAccoms.push(accom);
+      storedAccoms.sort((a, b) => a.checkInDate.localeCompare(b.checkInDate));
+      await db.upsertAccommodation(accom);
       formPerson = '';
       draw();
     });
@@ -211,25 +205,8 @@ function renderAccommodation(base) {
   draw();
 }
 
-function loadStops(base) {
-  try {
-    const saved = localStorage.getItem(STOPS_KEY);
-    return saved ? JSON.parse(saved) : base.map(m => ({ ...m }));
-  } catch {
-    return base.map(m => ({ ...m }));
-  }
-}
-
-function saveStops(stops) {
-  localStorage.setItem(STOPS_KEY, JSON.stringify(stops));
-}
-
-function localDateStr(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 function computeStopStatus(stop) {
-  if (!stop.date) return stop.status || 'upcoming';
+  if (!stop.date) return 'upcoming';
   const now = new Date();
   const deviceDate = localDateStr(now);
   if (deviceDate > stop.date) return 'completed';
@@ -245,11 +222,9 @@ function computeStopStatus(stop) {
 
 const STOP_STATUS_LABELS = { completed: 'Done', current: 'Now', upcoming: 'Next' };
 
-function renderMilestones(base) {
+function renderMilestones() {
   const container = document.getElementById('milestones');
   if (!container) return;
-
-  let stops = loadStops(base);
 
   function mapsUrl(title, customUrl) {
     if (customUrl) return customUrl;
@@ -257,14 +232,12 @@ function renderMilestones(base) {
   }
 
   function draw() {
-    const items = stops.map((m, i) => {
+    const items = storedMilestones.map((m, i) => {
       const status = computeStopStatus(m);
       let when = '';
       if (m.date) {
         const [my, mm, md] = m.date.split('-');
         when = `${md}.${mm}.${my} · ${m.time || '--:--'}`;
-      } else if (m.day) {
-        when = `Day ${m.day}`;
       }
       const href = mapsUrl(m.title, m.url);
       return `
@@ -300,27 +273,30 @@ function renderMilestones(base) {
     });
 
     container.querySelectorAll('.stop-delete').forEach(btn => {
-      btn.addEventListener('click', () => {
-        stops.splice(Number(btn.dataset.index), 1);
-        saveStops(stops);
+      btn.addEventListener('click', async () => {
+        const idx = Number(btn.dataset.index);
+        const id = storedMilestones[idx]?.id;
+        storedMilestones.splice(idx, 1);
+        if (id) await db.deleteMilestone(id);
         draw();
       });
     });
 
-    container.querySelector('#stop-add-form').addEventListener('submit', e => {
+    container.querySelector('#stop-add-form').addEventListener('submit', async e => {
       e.preventDefault();
       const title = container.querySelector('#stop-title').value.trim();
       const date = container.querySelector('#stop-date').value;
       const time = container.querySelector('#stop-time').value;
       const url = container.querySelector('#stop-url').value.trim() || null;
       if (!title || !date) return;
-      stops.push({ id: `u-${Date.now()}`, title, date, time: time || null, url, status: 'upcoming' });
-      stops.sort((a, b) => {
+      const m = { id: `u-${Date.now()}`, title, date, time: time || null, url };
+      storedMilestones.push(m);
+      storedMilestones.sort((a, b) => {
         const aKey = `${a.date || '9999-99-99'} ${a.time || '99:99'}`;
         const bKey = `${b.date || '9999-99-99'} ${b.time || '99:99'}`;
         return aKey.localeCompare(bKey);
       });
-      saveStops(stops);
+      await db.insertMilestone(m);
       draw();
     });
   }
@@ -328,13 +304,12 @@ function renderMilestones(base) {
   draw();
 }
 
-function renderStatistics(stats, trip, milestones) {
+function renderStatistics(stats, trip) {
   const container = document.getElementById('statistics');
   if (!container) return;
 
-  const stops = loadStops(milestones);
-  const stopsTotal = stops.length;
-  const stopsDone = stops.filter(s => computeStopStatus(s) === 'completed').length;
+  const stopsTotal = storedMilestones.length;
+  const stopsDone = storedMilestones.filter(s => computeStopStatus(s) === 'completed').length;
 
   const start = new Date(trip.startDate + 'T00:00:00');
   const end = new Date(trip.endDate + 'T00:00:00');
@@ -373,14 +348,35 @@ async function init() {
   if (status) showLoading(status);
 
   try {
-    const data = await fetchTripData();
+    const [data, milestones, accoms] = await Promise.all([
+      fetchTripData(),
+      db.getMilestones(),
+      db.getAccommodation(),
+    ]);
     if (status) status.innerHTML = '';
 
+    storedMilestones = milestones;
+    storedAccoms = accoms;
+
     renderCountdown(data.trip);
-    renderMilestones(data.milestones);
-    renderAccommodation(data.accommodation || []);
-    renderStatistics(data.statistics, data.trip, data.milestones);
-    updateKmStat(loadStops(data.milestones));
+    renderMilestones();
+    renderAccommodation();
+    renderStatistics(data.statistics, data.trip);
+    updateKmStat();
+
+    db.supabase.channel('links-rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'milestones' }, async () => {
+        storedMilestones = await db.getMilestones();
+        renderMilestones();
+        renderStatistics(data.statistics, data.trip);
+        updateKmStat();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'accommodation' }, async () => {
+        storedAccoms = await db.getAccommodation();
+        renderAccommodation();
+      })
+      .subscribe();
+
   } catch (err) {
     if (status) showError(status, err.message);
   }

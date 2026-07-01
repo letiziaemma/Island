@@ -26,6 +26,8 @@ const state = {
   meals: { lunch: { dish: '', tags: [] }, dinner: { dish: '', tags: [] } },
   stops: [],
   hidden: [],
+  accom: [],
+  milestones: [],
 };
 
 // Draw function refs — set by render* calls, invoked by real-time handlers
@@ -46,17 +48,6 @@ function localDateStr(d) {
 function debounce(fn, ms) {
   let t;
   return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
-}
-
-const ACCOM_KEY = 'island-accommodation-v1';
-
-function loadAccom(base) {
-  try {
-    const saved = localStorage.getItem(ACCOM_KEY);
-    return saved ? JSON.parse(saved) : (base || []).map(a => ({ ...a }));
-  } catch {
-    return (base || []).map(a => ({ ...a }));
-  }
 }
 
 async function getDrivingDistance(lat1, lng1, lat2, lng2) {
@@ -206,7 +197,7 @@ function renderHero(data) {
 
 // ── Itinerary ─────────────────────────────────────────────────────
 
-function renderItinerary(today, baseAccom) {
+function renderItinerary(today) {
   const container = document.getElementById('itinerary');
   if (!container) return;
 
@@ -226,14 +217,25 @@ function renderItinerary(today, baseAccom) {
       custom: true,
     }));
 
-    const middle = [...baseItems, ...extra].sort((a, b) => {
+    const fromMilestones = state.milestones
+      .filter(m => m.date === todayVal)
+      .map(m => ({
+        id: m.id,
+        time: m.time || null,
+        title: m.title,
+        location: m.title,
+        url: m.url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.title + ' Iceland')}`,
+        milestone: true,
+      }));
+
+    const middle = [...baseItems, ...extra, ...fromMilestones].sort((a, b) => {
       if (!a.time && !b.time) return 0;
       if (!a.time) return 1;
       if (!b.time) return -1;
       return a.time.localeCompare(b.time);
     });
 
-    const accoms = loadAccom(baseAccom);
+    const accoms = state.accom;
     const startAccom = accoms.find(a => a.checkOutDate === todayVal);
     const endAccom   = accoms.find(a => a.checkInDate  === todayVal);
 
@@ -255,7 +257,7 @@ function renderItinerary(today, baseAccom) {
       const href = !item.isAccom && (item.url || (item.location
         ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`
         : null));
-      const deleteBtn = item.isAccom ? '' : item.custom
+      const deleteBtn = (item.isAccom || item.milestone) ? '' : item.custom
         ? `<button class="itinerary__delete" data-id="${item.id}" aria-label="Delete stop">✕</button>`
         : `<button class="itinerary__delete" data-idx="${item._idx}" aria-label="Delete stop">✕</button>`;
       return `
@@ -525,12 +527,12 @@ function renderReflection(today) {
     });
 
     if (!isSubmitted) {
-      container.querySelector('.reflection__submit-btn').addEventListener('click', () => {
+      container.querySelector('.reflection__submit-btn').addEventListener('click', async () => {
         if (!state.reflections[today.date][_activeUser]) {
           state.reflections[today.date][_activeUser] = { moments: '', learnings: '', song: '', emoji: '' };
         }
         state.reflections[today.date][_activeUser]._submittedAt = new Date().toISOString();
-        db.upsertReflection(today.date, _activeUser, state.reflections[today.date][_activeUser]);
+        await db.upsertReflection(today.date, _activeUser, state.reflections[today.date][_activeUser]);
         showThankYou = true;
         thankYouUser = _activeUser;
         draw();
@@ -610,6 +612,19 @@ function initRealtime(todayStr, todayData) {
         updateHeroStopCount(todayItinerary);
         updateHeroKm(todayItinerary);
       })
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'accommodation' },
+      async () => {
+        state.accom = await db.getAccommodation();
+        if (_drawItinerary) _drawItinerary();
+      })
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'milestones' },
+      async () => {
+        state.milestones = await db.getMilestones();
+        if (_drawItinerary) _drawItinerary();
+        updateHeroStopCount(todayItinerary);
+      })
     .subscribe();
 }
 
@@ -628,25 +643,36 @@ async function init() {
     tripLocations = data.locations || [];
     const todayStr = localDateStr(new Date());
 
-    const [reflections, meals, stops, hidden] = await Promise.all([
+    const [reflections, meals, stops, hidden, accom, milestones] = await Promise.all([
       db.getAllReflections(),
       db.getMeals(data.today.date),
       db.getStops(todayStr),
       db.getHiddenIndices(todayStr),
+      db.getAccommodation(),
+      db.getMilestones(),
     ]);
 
     state.reflections = reflections;
     state.meals       = meals;
     state.stops       = stops;
     state.hidden      = hidden;
+    state.accom       = accom;
+    state.milestones  = milestones;
 
     renderHero(data);
-    renderItinerary(data.today, data.accommodation || []);
+    renderItinerary(data.today);
     renderProgress(data.today);
     renderMeals(data.today);
     renderReflection(data.today);
     updateHeroKm(data.today.itinerary);
     initRealtime(todayStr, data.today);
+
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState === 'visible') {
+        state.reflections = await db.getAllReflections();
+        if (_drawReflection) _drawReflection();
+      }
+    });
   } catch (err) {
     if (status) showError(status, err.message);
   }

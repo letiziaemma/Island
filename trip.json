@@ -30,38 +30,7 @@
       "wind": "18 km/h NW",
       "placeholder": true
     },
-    "itinerary": [
-      {
-        "time": "08:00",
-        "title": "Depart accommodation",
-        "location": "Reykjavik area",
-        "status": "completed"
-      },
-      {
-        "time": "10:30",
-        "title": "Seljalandsfoss waterfall",
-        "location": "Seljalandsfoss, South Iceland",
-        "status": "completed"
-      },
-      {
-        "time": "12:00",
-        "title": "Skógafoss & lunch stop",
-        "location": "Skógafoss, Skógar",
-        "status": "current"
-      },
-      {
-        "time": "15:00",
-        "title": "Reynisfjara black sand beach",
-        "location": "Reynisfjara, Vík",
-        "status": "upcoming"
-      },
-      {
-        "time": "18:30",
-        "title": "Check in — coastal guesthouse",
-        "location": "Vík, Iceland",
-        "status": "upcoming"
-      }
-    ],
+    "itinerary": [],
     "meals": {
       "lunch":  { "dish": "", "tags": [] },
       "dinner": { "dish": "", "tags": [] }
@@ -75,50 +44,9 @@
       "distanceTotal": 1350
     }
   },
-  "milestones": [
-    {
-      "id": "m1",
-      "title": "Arrive in Iceland",
-      "day": 1,
-      "status": "completed"
-    },
-    {
-      "id": "m2",
-      "title": "Golden Circle complete",
-      "day": 2,
-      "status": "completed"
-    },
-    {
-      "id": "m3",
-      "title": "Reach the South Coast",
-      "day": 3,
-      "status": "current"
-    },
-    {
-      "id": "m4",
-      "title": "Glacier lagoon visit",
-      "day": 5,
-      "status": "upcoming"
-    },
-    {
-      "id": "m5",
-      "title": "Highlands crossing",
-      "day": 7,
-      "status": "upcoming"
-    },
-    {
-      "id": "m6",
-      "title": "Return to Reykjavik",
-      "day": 10,
-      "status": "upcoming"
-    }
-  ],
+  "milestones": [],
   "journal": [],
-  "accommodation": [
-    { "id": "acc-1", "name": "City Hotel", "person": "", "checkInDate": "2026-06-30", "checkInTime": "15:00", "checkOutDate": "2026-07-02", "url": null },
-    { "id": "acc-2", "name": "Coastal Guesthouse", "person": "", "checkInDate": "2026-07-02", "checkInTime": "15:00", "checkOutDate": "2026-07-04", "url": null },
-    { "id": "acc-3", "name": "Farm Stay", "person": "", "checkInDate": "2026-07-04", "checkInTime": "15:00", "checkOutDate": "2026-07-06", "url": null }
-  ],
+  "accommodation": [],
   "links": {
     "categories": [
       {
